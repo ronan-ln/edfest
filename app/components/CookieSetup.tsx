@@ -3,15 +3,21 @@
 import { useState } from 'react'
 
 const LS_KEY = 'edfest_cookie'
+const LS_NAME_KEY = 'edfest_firstname'
 
 export function getCookie(): string {
   if (typeof window === 'undefined') return ''
   return localStorage.getItem(LS_KEY) ?? ''
 }
 
+export function getFirstName(): string {
+  if (typeof window === 'undefined') return ''
+  return localStorage.getItem(LS_NAME_KEY) ?? ''
+}
+
 interface CookieSetupProps {
   onClose: () => void
-  onSaved: () => void
+  onSaved: (firstName: string) => void
 }
 
 export function CookieSetup({ onClose, onSaved }: CookieSetupProps) {
@@ -23,12 +29,16 @@ export function CookieSetup({ onClose, onSaved }: CookieSetupProps) {
 
   function save() {
     localStorage.setItem(LS_KEY, value.trim())
-    onSaved()
+    // Persist name if already fetched via test; otherwise clear stale name
+    if (!testResult?.startsWith('✓')) localStorage.removeItem(LS_NAME_KEY)
+    const firstName = getFirstName()
+    onSaved(firstName)
     onClose()
   }
 
   function clear() {
     localStorage.removeItem(LS_KEY)
+    localStorage.removeItem(LS_NAME_KEY)
     setValue('')
     setTestResult(null)
   }
@@ -37,14 +47,25 @@ export function CookieSetup({ onClose, onSaved }: CookieSetupProps) {
     setTesting(true)
     setTestResult(null)
     try {
-      const res = await fetch('/api/basket', {
-        headers: { 'x-edfest-cookie': value.trim() },
-      })
-      const data = await res.json()
-      if (res.ok && data.basket) {
-        const n = data.basket.summary?.notickets ?? 0
-        setTestResult(`✓ Connected — ${n} ticket${n !== 1 ? 's' : ''} currently in basket`)
+      const cookie = value.trim()
+      const [userRes, basketRes] = await Promise.all([
+        fetch('/api/user', { headers: { 'x-edfest-cookie': cookie } }),
+        fetch('/api/basket', { headers: { 'x-edfest-cookie': cookie } }),
+      ])
+      const userData = userRes.ok ? await userRes.json() : null
+      const basketData = basketRes.ok ? await basketRes.json() : null
+
+      const firstName: string = userData?.firstname ?? userData?.user?.firstname ?? userData?.first_name ?? ''
+      const tickets: number = basketData?.basket?.summary?.notickets ?? 0
+
+      if (userRes.ok && firstName) {
+        localStorage.setItem(LS_NAME_KEY, firstName)
+        setTestResult(`✓ Connected as ${firstName} — ${tickets} ticket${tickets !== 1 ? 's' : ''} in basket`)
+      } else if (basketRes.ok && basketData?.basket) {
+        localStorage.removeItem(LS_NAME_KEY)
+        setTestResult(`✓ Connected — ${tickets} ticket${tickets !== 1 ? 's' : ''} in basket`)
       } else {
+        localStorage.removeItem(LS_NAME_KEY)
         setTestResult('✗ Cookie rejected — try copying it again')
       }
     } catch {

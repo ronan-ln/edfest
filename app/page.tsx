@@ -5,7 +5,7 @@ import type { AvailabilityCache, Event, Performance } from './types'
 import { FilterBar } from './components/FilterBar'
 import { EventCard } from './components/EventCard'
 import { EventModal } from './components/EventModal'
-import { CookieSetup, getCookie } from './components/CookieSetup'
+import { CookieSetup, getCookie, getFirstName } from './components/CookieSetup'
 
 const TIMES_CODE = 'TIMESGIVEAWAY'
 
@@ -31,14 +31,23 @@ export default function Home() {
   const [visibleLimit, setVisibleLimit] = useState(60)
   const [showCookieSetup, setShowCookieSetup] = useState(false)
   const [hasCookie, setHasCookie] = useState(false)
+  const [firstName, setFirstName] = useState('')
+  const [basketCount, setBasketCount] = useState<number | null>(null)
   const [availLoading, setAvailLoading] = useState(true)
 
   useEffect(() => {
     const cookie = getCookie()
     setHasCookie(!!cookie)
+    setFirstName(getFirstName())
     // Show setup on first visit if no cookie configured
     if (!cookie && !localStorage.getItem('edfest_setup_dismissed')) {
       setShowCookieSetup(true)
+    }
+    if (cookie) {
+      fetch('/api/basket', { headers: { 'x-edfest-cookie': cookie } })
+        .then(r => r.json())
+        .then(d => { if (d.basket?.summary?.notickets != null) setBasketCount(d.basket.summary.notickets) })
+        .catch(() => {})
     }
   }, [])
 
@@ -142,7 +151,9 @@ export default function Home() {
             onClick={() => setShowCookieSetup(true)}
             className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition ${hasCookie ? 'border-green-400/40 text-green-400 hover:bg-green-400/10' : 'border-gray-700 text-gray-400 hover:border-green-400 hover:text-green-400'}`}
           >
-            {hasCookie ? '✓ Connected' : '⚙ Connect to edfest.com'}
+            {hasCookie
+              ? `✓ ${firstName ? `Hi, ${firstName}` : 'Connected'}${basketCount != null ? ` · ${basketCount} ticket${basketCount !== 1 ? 's' : ''}` : ''}`
+              : '⚙ Connect to edfest.com'}
           </button>
         </div>
       </header>
@@ -229,7 +240,10 @@ export default function Home() {
             setShowCookieSetup(false)
             localStorage.setItem('edfest_setup_dismissed', '1')
           }}
-          onSaved={() => setHasCookie(true)}
+          onSaved={(name) => {
+            setHasCookie(true)
+            if (name) setFirstName(name)
+          }}
         />
       )}
     </div>
