@@ -91,20 +91,21 @@ function PerformanceRow({ perf, eventId, hasCookie, onNeedCookie, onBasketSucces
     const payload = { event: eventId, performance: perf.id, ticket }
 
     try {
-      const res = await fetch('/api/basket', {
+      const res = await fetch('https://edfest.com/api/basket', {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
-          'x-edfest-cookie': getCookie(),
+          'Cookie': getCookie(),
         },
         body: JSON.stringify(payload),
+        credentials: 'include',
       })
       const data = await res.json()
       if (res.ok && data.success) {
         setBasketState('success')
         onBasketSuccess(`Added ${quantity} ticket${quantity !== 1 ? 's' : ''} for ${fmtDate(perf.datetime)}`)
       } else {
-        setError(data.message || data.error || 'Failed to add to basket')
+        setError(data.message || data.error || `Error: ${res.status}`)
         setBasketState('error')
         setTimeout(() => setBasketState('idle'), 4000)
       }
@@ -204,7 +205,10 @@ export function EventModal({ event, onClose, onNeedCookie }: EventModalProps) {
   useEffect(() => {
     const cookie = getCookie()
     if (!cookie) return
-    fetch('/api/basket', { headers: { 'x-edfest-cookie': cookie } })
+    fetch('https://edfest.com/api/basket', {
+      headers: { 'Cookie': cookie },
+      credentials: 'include',
+    })
       .then(r => r.json())
       .then(d => { if (d.basket?.summary?.notickets != null) setBasketCount(d.basket.summary.notickets) })
       .catch(() => {})

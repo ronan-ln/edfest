@@ -14,13 +14,27 @@ export async function GET(req: NextRequest) {
   const cookie = req.headers.get('x-edfest-cookie') || ''
   if (!cookie) return NextResponse.json({ error: 'no cookie' }, { status: 401 })
 
-  const res = await fetch('https://edfest.com/api/basket', {
-    headers: { ...EDFEST_HEADERS, Cookie: cookie },
-    cache: 'no-store',
-  })
+  try {
+    const res = await fetch('https://edfest.com/api/basket', {
+      headers: { ...EDFEST_HEADERS, Cookie: cookie },
+      cache: 'no-store',
+    })
 
-  const data = await res.json()
-  return NextResponse.json(data, { status: res.status })
+    const text = await res.text()
+    console.log('GET /api/basket response:', { status: res.status, text, headers: Object.fromEntries(res.headers) })
+
+    let data
+    try {
+      data = text ? JSON.parse(text) : {}
+    } catch {
+      return NextResponse.json({ error: 'Invalid response from edfest.com', rawResponse: text, status: res.status }, { status: 502 })
+    }
+    return NextResponse.json(data, { status: res.status })
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Unknown error'
+    console.error('GET /api/basket error:', msg)
+    return NextResponse.json({ error: msg }, { status: 502 })
+  }
 }
 
 // POST /api/basket — add item to basket
@@ -28,19 +42,34 @@ export async function POST(req: NextRequest) {
   const cookie = req.headers.get('x-edfest-cookie') || ''
   if (!cookie) return NextResponse.json({ error: 'no cookie' }, { status: 401 })
 
-  const body = await req.json()
+  try {
+    const body = await req.json()
+    console.log('POST /api/basket request body:', body)
 
-  const res = await fetch('https://edfest.com/api/basket', {
-    method: 'POST',
-    headers: {
-      ...EDFEST_HEADERS,
-      'content-type': 'application/json',
-      Cookie: cookie,
-    },
-    body: JSON.stringify(body),
-    cache: 'no-store',
-  })
+    const res = await fetch('https://edfest.com/api/basket', {
+      method: 'POST',
+      headers: {
+        ...EDFEST_HEADERS,
+        'content-type': 'application/json',
+        Cookie: cookie,
+      },
+      body: JSON.stringify(body),
+      cache: 'no-store',
+    })
 
-  const data = await res.json()
-  return NextResponse.json(data, { status: res.status })
+    const text = await res.text()
+    console.log('POST /api/basket response:', { status: res.status, text, headers: Object.fromEntries(res.headers) })
+
+    let data
+    try {
+      data = text ? JSON.parse(text) : {}
+    } catch {
+      return NextResponse.json({ error: 'Invalid response from edfest.com', rawResponse: text, status: res.status }, { status: 502 })
+    }
+    return NextResponse.json(data, { status: res.status })
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Unknown error'
+    console.error('POST /api/basket error:', msg)
+    return NextResponse.json({ error: msg }, { status: 502 })
+  }
 }

@@ -44,7 +44,10 @@ export default function Home() {
       setShowCookieSetup(true)
     }
     if (cookie) {
-      fetch('/api/basket', { headers: { 'x-edfest-cookie': cookie } })
+      fetch('https://edfest.com/api/basket', {
+        headers: { 'Cookie': cookie },
+        credentials: 'include',
+      })
         .then(r => r.json())
         .then(d => { if (d.basket?.summary?.notickets != null) setBasketCount(d.basket.summary.notickets) })
         .catch(() => {})
