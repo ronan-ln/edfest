@@ -93,7 +93,7 @@ function PerformanceRow({ perf, eventId, hasCookie, onNeedCookie, onBasketSucces
         setLoading(false)
       })
     return () => { cancelled = true }
-  }, [perf, slug])
+  }, [slug, perf.id])
 
   const currentPerf = livePerf || perf
   const c = timesConcession(currentPerf)!
