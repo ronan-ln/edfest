@@ -31,8 +31,16 @@ export default function Home() {
   const [visibleLimit, setVisibleLimit] = useState(60)
   const [showCookieSetup, setShowCookieSetup] = useState(false)
   const [hasCookie, setHasCookie] = useState(false)
+  const [availLoading, setAvailLoading] = useState(true)
 
-  useEffect(() => { setHasCookie(!!getCookie()) }, [])
+  useEffect(() => {
+    const cookie = getCookie()
+    setHasCookie(!!cookie)
+    // Show setup on first visit if no cookie configured
+    if (!cookie && !localStorage.getItem('edfest_setup_dismissed')) {
+      setShowCookieSetup(true)
+    }
+  }, [])
 
   // Sync modal open/close with browser history so the back button closes it
   useEffect(() => {
@@ -49,11 +57,10 @@ export default function Home() {
 
   useEffect(() => {
     let cancelled = false
-    Promise.all([
-      fetch('/offers.json').then((r) => r.json() as Promise<Event[]>),
-      fetch('/api/cached-availability').then((r) => r.json() as Promise<AvailabilityCache>),
-    ])
-      .then(([offers, avail]) => {
+    // Load events first, then availability separately
+    fetch('/offers.json')
+      .then((r) => r.json() as Promise<Event[]>)
+      .then((offers) => {
         if (cancelled) return
         const seen = new Set<string>()
         const unique: Event[] = []
@@ -63,12 +70,23 @@ export default function Home() {
           unique.push(e)
         }
         setEvents(unique)
-        setCache(avail || {})
         setLoading(false)
       })
       .catch(() => {
         if (cancelled) return
         setLoading(false)
+      })
+
+    fetch('/api/cached-availability')
+      .then((r) => r.json() as Promise<AvailabilityCache>)
+      .then((avail) => {
+        if (cancelled) return
+        setCache(avail || {})
+        setAvailLoading(false)
+      })
+      .catch(() => {
+        if (cancelled) return
+        setAvailLoading(false)
       })
     return () => {
       cancelled = true
@@ -166,6 +184,12 @@ export default function Home() {
 
         {!loading && filtered.length > 0 && (
           <>
+            {availLoading && (
+              <div className="mb-4 flex items-center gap-3 rounded-lg border border-gray-800 bg-gray-900 px-4 py-3 text-sm text-gray-400">
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-700 border-t-green-400" />
+                Loading promo availability...
+              </div>
+            )}
             <div className="grid grid-cols-1 gap-5">
               {visible.map((e) => (
                 <EventCard
@@ -201,7 +225,10 @@ export default function Home() {
 
       {showCookieSetup && (
         <CookieSetup
-          onClose={() => setShowCookieSetup(false)}
+          onClose={() => {
+            setShowCookieSetup(false)
+            localStorage.setItem('edfest_setup_dismissed', '1')
+          }}
           onSaved={() => setHasCookie(true)}
         />
       )}

@@ -126,8 +126,7 @@ function PerformanceRow({ perf, eventId, hasCookie, onNeedCookie, onBasketSucces
           {promoLabel}
         </span>
 
-        {available && basketState !== 'success' && (
-          hasCookie ? (
+        {available && basketState !== 'success' && hasCookie && (
             <button
               type="button"
               onClick={addToBasket}
@@ -136,15 +135,6 @@ function PerformanceRow({ perf, eventId, hasCookie, onNeedCookie, onBasketSucces
             >
               {basketState === 'adding' ? 'Adding…' : basketState === 'error' ? 'Failed — retry' : '+ Basket'}
             </button>
-          ) : (
-            <button
-              type="button"
-              onClick={onNeedCookie}
-              className="rounded-lg border border-green-400/40 px-3 py-1 text-xs font-semibold text-green-400 hover:bg-green-400/10"
-            >
-              Set up to add →
-            </button>
-          )
         )}
 
         {basketState === 'success' && (
@@ -332,11 +322,11 @@ export function EventModal({ event, onClose, onNeedCookie }: EventModalProps) {
         <div className="p-5">
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-400">Times Giveaway availability</h3>
-            {!hasCookie && (
+            {!hasCookie && timesPerfs.length > 0 && (
               <button
                 type="button"
                 onClick={onNeedCookie}
-                className="text-xs text-green-400 hover:underline"
+                className="rounded-lg border border-green-400/40 px-3 py-1.5 text-xs font-semibold text-green-400 hover:bg-green-400/10"
               >
                 Connect to add to basket →
               </button>
