@@ -189,9 +189,9 @@ export default function Home() {
         {!loading && filtered.length > 0 && (
           <>
             {availLoading && (
-              <div className="mb-4 flex items-center gap-3 rounded-lg border border-gray-800 bg-gray-900 px-4 py-3 text-sm text-gray-400">
-                <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-700 border-t-green-400" />
-                Loading promo availability...
+              <div className="mb-4 flex items-center gap-2 rounded-lg border border-gray-800 bg-gray-900 px-4 py-3 text-sm text-gray-400">
+                <div className="h-3 w-3 animate-spin rounded-full border-2 border-gray-700 border-t-green-400" />
+                <span>Updating availability...</span>
               </div>
             )}
             <div className="grid grid-cols-1 gap-5">
