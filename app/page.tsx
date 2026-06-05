@@ -28,6 +28,7 @@ export default function Home() {
   const [category, setCategory] = useState('')
   const [promoOnly, setPromoOnly] = useState(false)
   const [selected, setSelected] = useState<Event | null>(null)
+  const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [visibleLimit, setVisibleLimit] = useState(60)
   const [showCookieSetup, setShowCookieSetup] = useState(false)
   const [hasCookie, setHasCookie] = useState(false)
@@ -66,6 +67,22 @@ export default function Home() {
     window.addEventListener('popstate', onPop)
     return () => window.removeEventListener('popstate', onPop)
   }, [])
+
+  // Handle deeplinks like ?slug=event-slug&date=2026-08-12T15:00:00
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    const slug = params.get('slug')
+    const date = params.get('date')
+
+    if (slug && events.length > 0) {
+      const event = events.find(e => e.slug === slug)
+      if (event) {
+        setSelected(event)
+        if (date) setSelectedDate(date)
+      }
+    }
+  }, [events])
 
   useEffect(() => {
     let cancelled = false
