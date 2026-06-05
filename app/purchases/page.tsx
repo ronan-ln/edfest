@@ -152,7 +152,7 @@ function getEventColor(seed: string): { background: string; border: string } {
   }
   const hue = Math.abs(hash) % 360
   return {
-    background: `hsla(${hue}, 82%, 62%, 0.24)`,
+    background: `hsla(${hue}, 78%, 52%, 0.32)`,
     border: `hsla(${hue}, 88%, 72%, 0.95)`,
   }
 }
@@ -720,7 +720,7 @@ function PurchasesPageContent() {
                       return (
                         <div
                           key={minutes}
-                          className={`absolute inset-x-0 border-t ${isHour ? 'border-gray-700' : 'border-gray-800/80'}`}
+                          className={`pointer-events-none absolute inset-x-0 z-0 border-t ${isHour ? 'border-gray-700' : 'border-gray-800/80'}`}
                           style={{ top }}
                         />
                       )
@@ -733,6 +733,8 @@ function PurchasesPageContent() {
                         MIN_EVENT_MINUTES * PIXELS_PER_MINUTE,
                         (event.endMinutes - event.startMinutes) * PIXELS_PER_MINUTE
                       )
+                      const compact = height < 96
+                      const ultraCompact = height < 70
                       const width = `calc(${100 / event.columns}% - 8px)`
                       const left = `calc(${(100 / event.columns) * event.column}% + 4px)`
 
@@ -741,7 +743,7 @@ function PurchasesPageContent() {
                           key={event.key}
                           type="button"
                           onClick={() => setSelectedEvent(event)}
-                          className="absolute overflow-hidden rounded-2xl border p-3 text-left shadow-lg shadow-black/25 transition hover:-translate-y-0.5 hover:shadow-xl"
+                          className={`absolute z-10 overflow-hidden rounded-2xl border text-left shadow-lg shadow-black/25 transition hover:-translate-y-0.5 hover:shadow-xl ${compact ? 'p-2' : 'p-3'}`}
                           style={{
                             top: `${top}px`,
                             left,
@@ -751,17 +753,22 @@ function PurchasesPageContent() {
                             borderColor: colors.border,
                           }}
                         >
-                          <div className="flex h-full flex-col gap-1 text-white">
-                            <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/70">
-                              {formatTimeLabel(event.startMinutes)} - {formatTimeLabel(event.endMinutes)}
-                            </span>
-                            <h3 className="line-clamp-2 text-sm font-semibold leading-tight">{event.event}</h3>
-                            <p className="line-clamp-2 text-xs text-white/80">
-                              {event.venue} · {event.subvenue}
-                            </p>
-                            <div className="mt-auto flex items-center justify-between gap-2 text-xs text-white/90">
-                              <span>{event.ticketCount} ticket{event.ticketCount !== 1 ? 's' : ''}</span>
-                              <span>{event.durationMinutes} min</span>
+                          <div className={`flex h-full flex-col text-white ${compact ? 'gap-0.5' : 'gap-1'}`}>
+                            <div className="flex items-start justify-between gap-2">
+                              <span className={`font-semibold uppercase text-white/75 ${ultraCompact ? 'text-[10px] tracking-[0.14em]' : 'text-[11px] tracking-[0.18em]'}`}>
+                                {formatTimeLabel(event.startMinutes)} - {formatTimeLabel(event.endMinutes)}
+                              </span>
+                              {!ultraCompact && <span className="text-xs text-white/85">{event.durationMinutes} min</span>}
+                            </div>
+
+                            <h3 className={`font-semibold leading-tight ${compact ? 'line-clamp-1 text-xs' : 'line-clamp-2 text-sm'}`}>
+                              {event.event}
+                            </h3>
+
+                            {!compact && <p className="line-clamp-1 text-xs text-white/85">{event.venue} · {event.subvenue}</p>}
+
+                            <div className={`text-xs text-white/95 ${compact ? '' : 'mt-auto'}`}>
+                              {event.ticketCount} ticket{event.ticketCount !== 1 ? 's' : ''}
                             </div>
                           </div>
                         </button>
