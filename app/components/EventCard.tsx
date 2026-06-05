@@ -65,14 +65,8 @@ function fmtDuration(duration: string | number | null | undefined): string | nul
   if (duration == null) return null
   const value = typeof duration === 'number' ? duration : Number.parseFloat(String(duration))
   if (!Number.isFinite(value) || value <= 0) return null
-
   const totalMinutes = Math.round(value)
-  const hours = Math.floor(totalMinutes / 60)
-  const minutes = totalMinutes % 60
-
-  if (hours > 0 && minutes > 0) return `${hours}h ${minutes}m`
-  if (hours > 0) return `${hours}h`
-  return `${totalMinutes}m`
+  return `${totalMinutes}min`
 }
 
 function countTimesPromo(perfs: Performance[] | null): number {

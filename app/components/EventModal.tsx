@@ -58,6 +58,13 @@ function sanitizeHtml(html: string | null): string {
     .replace(/ on[a-z]+='[^']*'/gi, '')
 }
 
+function formatDuration(duration: string | number | null | undefined): string | null {
+  if (duration == null) return null
+  const value = typeof duration === 'number' ? duration : Number.parseFloat(String(duration))
+  if (!Number.isFinite(value) || value <= 0) return null
+  return `${Math.round(value)}min`
+}
+
 type BasketState = 'idle' | 'adding' | 'success' | 'error'
 
 interface PerformanceRowProps {
@@ -304,6 +311,7 @@ export function EventModal({ event, cachedPerfs, onClose, onNeedCookie, onPerfor
   const bookHref = `https://edfest.com/whats-on/${event.slug}/book`
   const hero = heroImageUrl(event.image_thumbnail)
   const ageRating = event.minimum_age || event.raw_data?.ageSuitabilityTitle || null
+  const formattedDuration = formatDuration(event.duration)
   const sanitizedDesc = useMemo(() => sanitizeHtml(event.description), [event.description])
   const cats = (event.categories ?? []).map(c => c.categories_id?.name).filter(Boolean) as string[]
   const venueAddress = event.venue_id?.display_address ?? null
@@ -311,7 +319,7 @@ export function EventModal({ event, cachedPerfs, onClose, onNeedCookie, onPerfor
   if (event.venue_id?.name) {
     detailRows.push({ label: 'Venue', value: venueAddress ? `${event.venue_id.name} - ${venueAddress}` : event.venue_id.name })
   }
-  if (event.duration) detailRows.push({ label: 'Duration', value: `${event.duration} mins` })
+  if (formattedDuration) detailRows.push({ label: 'Duration', value: formattedDuration })
   if (event.event_type) detailRows.push({ label: 'Type', value: event.event_type })
   if (ageRating) detailRows.push({ label: 'Age', value: ageRating })
 
@@ -353,9 +361,9 @@ export function EventModal({ event, cachedPerfs, onClose, onNeedCookie, onPerfor
                 {ageRating}
               </span>
             )}
-            {event.duration && (
+            {formattedDuration && (
               <span className="rounded bg-gray-800 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-gray-400">
-                {event.duration}
+                {formattedDuration}
               </span>
             )}
             {cats.slice(0, 4).map((c) => (
