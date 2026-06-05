@@ -164,6 +164,7 @@ function PerformanceRow({ perf, eventId, hasCookie, onNeedCookie, onBasketSucces
       </div>
     </li>
   )
+}
 
 export function EventModal({ event, onClose, onNeedCookie }: EventModalProps) {
   const [perfs, setPerfs] = useState<Performance[] | null>(null)
