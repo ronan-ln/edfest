@@ -93,6 +93,15 @@ export function FilterBar({
           </span>
           {hasCookie && (
             <Link
+              href="/purchases"
+              className="flex items-center gap-1.5 rounded-lg border border-gray-700 px-3 py-2 text-sm font-medium text-gray-300 transition hover:border-green-400 hover:text-green-400"
+            >
+              <span className="text-base">🗓️</span>
+              <span>My Shows</span>
+            </Link>
+          )}
+          {hasCookie && (
+            <Link
               ref={basketLinkRef}
               href="https://edfest.com/account/basket"
               target="_blank"
