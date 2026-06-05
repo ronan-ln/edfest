@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import type { Performance } from '../../../../types'
+import { readAvailability, writeAvailability } from '../../../../lib/availability'
 
 const HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:151.0) Gecko/20100101 Firefox/151.0',
@@ -34,6 +35,31 @@ export async function GET(
     }
 
     const data: Performance = await res.json()
+
+    // Persist single-performance refreshes so card-level cache does not stay stale.
+    try {
+      const existing = readAvailability() ?? {}
+      const current = existing[slug]?.performances ?? []
+      const resolvedId = String(data.id ?? perfId)
+      const idx = current.findIndex((p) => String(p.id) === resolvedId)
+
+      const next = [...current]
+      const normalized: Performance = { ...data, id: resolvedId }
+      if (idx >= 0) {
+        next[idx] = normalized
+      } else {
+        next.push(normalized)
+      }
+
+      existing[slug] = {
+        fetchedAt: new Date().toISOString(),
+        performances: next,
+      }
+      writeAvailability(existing)
+    } catch (err) {
+      console.error('failed to persist single performance availability', err)
+    }
+
     return NextResponse.json(data)
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Unknown error'
