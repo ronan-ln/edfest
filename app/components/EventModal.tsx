@@ -105,9 +105,10 @@ function PerformanceRow({ perf, eventId, hasCookie, onNeedCookie, onBasketSucces
 
     setBasketState('adding')
     setError(null)
-    const ticket: Record<string, number> = {}
+    const ticket: Record<string, number | string> = {}
     ticket[String(pricebandId)] = 0
     ticket[`${pricebandId}_${concessionId}`] = quantity
+    ticket[`${pricebandId}_${concessionId}_promocode`] = TIMES_CODE
 
     const payload = { event: eventId, performance: currentPerf.id, ticket }
 
