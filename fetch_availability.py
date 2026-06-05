@@ -158,7 +158,7 @@ def main():
             }
         except requests.RequestException as e:
             print(f"{slug} ({idx}/{total}) - request error: {e}, will retry next run")
-            time.sleep(random.uniform(2.0, 5.0))
+            time.sleep(random.uniform(0.5, 2.0))
             continue
         else:
             raw = data.get("cache", []) if isinstance(data, dict) else []
@@ -174,7 +174,7 @@ def main():
                     remaining = next((c.get("remainingLimitValue") for c in remaining if c.get("code") == "TIMESGIVEAWAY"), None)
                     print(f"  • {perf.get('datetime')} (id: {perf.get('id')}) - slots: {remaining}")
                     detailed.append(detail)
-                    time.sleep(random.uniform(0.5, 1.5))
+                    time.sleep(random.uniform(0.2, 1.0))
                 except requests.RequestException as e:
                     print(f"  • {perf.get('datetime')} (id: {perf.get('id')}) - ERROR: {e}", file=sys.stderr)
                     detailed.append(perf)
@@ -192,7 +192,7 @@ def main():
             save_results(OUTPUT_FILE, results)
             processed_since_save = 0
 
-        time.sleep(random.uniform(2.0, 5.0))
+        time.sleep(random.uniform(0.5, 2.0))
 
     save_results(OUTPUT_FILE, results)
 
