@@ -1,0 +1,12 @@
+[build]
+builder = "nixpacks"
+buildCommand = "cd edfest-browser && npm install && npm run build"
+
+[build.nixpacksPlan.phases.setup]
+nixPkgs = ["nodejs_22"]
+
+[deploy]
+startCommand = "cd edfest-browser && npm run start"
+healthcheckPath = "/"
+healthcheckTimeout = 30
+restartPolicyType = "on_failure"
