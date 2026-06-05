@@ -8,6 +8,7 @@ interface EventModalProps {
   event: Event
   onClose: () => void
   onNeedCookie: () => void
+  onPerformanceUpdated: (slug: string, perf: Performance) => void
 }
 
 const TIMES_CODE = 'TIMESGIVEAWAY'
@@ -57,9 +58,10 @@ interface PerformanceRowProps {
   onNeedCookie: () => void
   onBasketSuccess: (msg: string, quantity: number) => void
   slug: string
+  onPerformanceUpdated: (slug: string, perf: Performance) => void
 }
 
-function PerformanceRow({ perf, eventId, hasCookie, onNeedCookie, onBasketSuccess, slug }: PerformanceRowProps) {
+function PerformanceRow({ perf, eventId, hasCookie, onNeedCookie, onBasketSuccess, slug, onPerformanceUpdated }: PerformanceRowProps) {
   const [basketState, setBasketState] = useState<BasketState>('idle')
   const [quantity, setQuantity] = useState(2)
   const [error, setError] = useState<string | null>(null)
@@ -72,7 +74,10 @@ function PerformanceRow({ perf, eventId, hasCookie, onNeedCookie, onBasketSucces
     fetch(`/api/performances/${slug}/${perf.id}`)
       .then(r => r.json())
       .then(data => {
-        if (!cancelled) setLivePerf(data)
+        if (!cancelled) {
+          setLivePerf(data)
+          onPerformanceUpdated(slug, data)
+        }
         setLoading(false)
       })
       .catch(() => {
@@ -207,7 +212,7 @@ function PerformanceRow({ perf, eventId, hasCookie, onNeedCookie, onBasketSucces
   )
 }
 
-export function EventModal({ event, onClose, onNeedCookie }: EventModalProps) {
+export function EventModal({ event, onClose, onNeedCookie, onPerformanceUpdated }: EventModalProps) {
   const [perfs, setPerfs] = useState<Performance[] | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -436,6 +441,7 @@ export function EventModal({ event, onClose, onNeedCookie }: EventModalProps) {
                   onNeedCookie={onNeedCookie}
                   onBasketSuccess={handleBasketSuccess}
                   slug={event.slug}
+                  onPerformanceUpdated={onPerformanceUpdated}
                 />
               ))}
             </ul>

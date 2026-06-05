@@ -155,6 +155,28 @@ export default function Home() {
 
   const visible = filtered.slice(0, visibleLimit)
 
+  function updateCachedPerformance(slug: string, perf: Performance) {
+    setCache((prev) => {
+      const current = prev[slug]?.performances ?? []
+      const id = String(perf.id)
+      const idx = current.findIndex((p) => String(p.id) === id)
+      const next = [...current]
+      if (idx >= 0) {
+        next[idx] = perf
+      } else {
+        next.push(perf)
+      }
+
+      return {
+        ...prev,
+        [slug]: {
+          fetchedAt: new Date().toISOString(),
+          performances: next,
+        },
+      }
+    })
+  }
+
   return (
     <div className="min-h-screen flex-1 bg-gray-950 text-gray-100">
       <header className="border-b border-gray-800 bg-gray-950">
@@ -243,6 +265,7 @@ export default function Home() {
           event={selected}
           onClose={() => window.history.back()}
           onNeedCookie={() => setShowCookieSetup(true)}
+          onPerformanceUpdated={updateCachedPerformance}
         />
       )}
 
