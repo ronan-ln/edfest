@@ -54,7 +54,7 @@ interface PerformanceRowProps {
   eventId: number
   hasCookie: boolean
   onNeedCookie: () => void
-  onBasketSuccess: (msg: string) => void
+  onBasketSuccess: (msg: string, quantity: number) => void
 }
 
 function PerformanceRow({ perf, eventId, hasCookie, onNeedCookie, onBasketSuccess }: PerformanceRowProps) {
@@ -102,7 +102,7 @@ function PerformanceRow({ perf, eventId, hasCookie, onNeedCookie, onBasketSucces
       const data = await res.json()
       if (res.ok && data.success) {
         setBasketState('success')
-        onBasketSuccess(`Added ${quantity} ticket${quantity !== 1 ? 's' : ''} for ${fmtDate(perf.datetime)}`)
+        onBasketSuccess(`Added ${quantity} ticket${quantity !== 1 ? 's' : ''} for ${fmtDate(perf.datetime)}`, quantity)
       } else {
         setError(data.message || data.error || `Error: ${res.status} - ${JSON.stringify(data)}`)
         setBasketState('error')
@@ -219,9 +219,9 @@ export function EventModal({ event, onClose, onNeedCookie }: EventModalProps) {
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  function handleBasketSuccess(msg: string) {
+  function handleBasketSuccess(msg: string, quantity: number) {
     setBasketMsg(msg)
-    setBasketCount(n => (n ?? 0) + 2)
+    setBasketCount(n => (n ?? 0) + quantity)
     setTimeout(() => setBasketMsg(null), 5000)
   }
 
