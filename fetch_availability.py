@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 import requests
 
 OFFERS_FILE = "/Users/ronan/perso/edfest/offers_all.json"
-OUTPUT_DIR = "/Users/ronan/perso/edfest/edfest-browser/data"
+OUTPUT_DIR = "/Users/ronan/perso/edfest/data"
 OUTPUT_FILE = os.path.join(OUTPUT_DIR, "availability.json")
 
 HEADERS = {
