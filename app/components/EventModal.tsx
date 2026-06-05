@@ -100,7 +100,7 @@ function PerformanceRow({ perf, eventId, hasCookie, onNeedCookie, onBasketSucces
         body: JSON.stringify(payload),
       })
       const data = await res.json()
-      if (res.ok && data.success) {
+      if (res.ok && (data.success || data.message)) {
         setBasketState('success')
         onBasketSuccess(`Added ${quantity} ticket${quantity !== 1 ? 's' : ''} for ${fmtDate(perf.datetime)}`, quantity)
       } else {

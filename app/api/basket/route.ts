@@ -44,7 +44,12 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json()
-    console.log('POST /api/basket request body:', body)
+    console.log('POST /api/basket request:', {
+      url: 'https://edfest.com/api/basket',
+      method: 'POST',
+      body,
+      headers: { 'content-type': 'application/json', Cookie: '***redacted***' },
+    })
 
     const res = await fetch('https://edfest.com/api/basket', {
       method: 'POST',
@@ -58,15 +63,30 @@ export async function POST(req: NextRequest) {
     })
 
     const text = await res.text()
-    console.log('POST /api/basket response:', { status: res.status, text, headers: Object.fromEntries(res.headers) })
+    console.log('POST /api/basket response:', {
+      status: res.status,
+      statusText: res.statusText,
+      contentLength: text.length,
+      text: text.slice(0, 500),
+      headers: Object.fromEntries(res.headers),
+    })
 
-    let data
-    try {
-      data = text ? JSON.parse(text) : {}
-    } catch {
-      return NextResponse.json({ error: 'Invalid response from edfest.com', rawResponse: text, status: res.status }, { status: 502 })
+    let data: any = { success: false }
+    if (res.status === 204) {
+      data = { success: true, message: 'Item added to basket' }
+    } else if (text) {
+      try {
+        data = JSON.parse(text)
+        if (res.ok) data.success = true
+      } catch {
+        return NextResponse.json({ error: 'Invalid JSON from edfest.com', rawResponse: text, status: res.status }, { status: 502 })
+      }
+    } else if (!res.ok) {
+      return NextResponse.json({ error: 'Request failed', status: res.status }, { status: res.status === 500 ? 502 : res.status })
+    } else {
+      data = { success: true, message: 'Item added to basket' }
     }
-    return NextResponse.json(data, { status: res.status })
+    return NextResponse.json(data, { status: 200 })
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Unknown error'
     console.error('POST /api/basket error:', msg)
