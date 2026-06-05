@@ -15,7 +15,7 @@ interface FilterBarProps {
   hasCookie: boolean
   firstName: string
   basketCount: number | null
-  onAccountClick: () => void
+  onSettingsClick: () => void
 }
 
 export function FilterBar({
@@ -31,7 +31,7 @@ export function FilterBar({
   hasCookie,
   firstName,
   basketCount,
-  onAccountClick,
+  onSettingsClick,
 }: FilterBarProps) {
   return (
     <div className="sticky top-0 z-20 border-b border-gray-800 bg-gray-950/90 backdrop-blur-md">
@@ -70,24 +70,24 @@ export function FilterBar({
           </span>
           {hasCookie && (
             <Link
-              href="/purchases"
+              href="https://edfest.com/account/basket"
+              target="_blank"
+              rel="noopener noreferrer"
               className="flex items-center gap-1.5 rounded-lg border border-gray-700 px-3 py-2 text-sm font-medium text-gray-300 transition hover:border-green-400 hover:text-green-400"
             >
               <span className="text-base">🎟️</span>
-              <span>My Tickets</span>
+              <span>{`Basket${basketCount != null ? ` · ${basketCount}` : ''}`}</span>
             </Link>
           )}
           <button
             type="button"
-            onClick={onAccountClick}
+            onClick={onSettingsClick}
             className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition ${hasCookie ? 'border-green-400/40 text-green-400 hover:bg-green-400/10' : 'border-gray-700 text-gray-400 hover:border-green-400 hover:text-green-400'}`}
+            title={hasCookie ? `Cookie settings${firstName ? ` (${firstName})` : ''}` : 'Connect cookie'}
+            aria-label={hasCookie ? 'Open cookie settings' : 'Connect cookie'}
           >
-            <span className="text-base">{hasCookie ? '🛒' : '🔓'}</span>
-            <span>
-              {hasCookie
-                ? `${firstName ? firstName : 'Account'}${basketCount != null ? ` · ${basketCount}` : ''}`
-                : 'Connect'}
-            </span>
+            <span className="text-base">⚙️</span>
+            <span>{hasCookie ? 'Settings' : 'Connect'}</span>
           </button>
         </div>
       </div>

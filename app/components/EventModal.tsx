@@ -307,7 +307,7 @@ export function EventModal({ event, cachedPerfs, onClose, onNeedCookie, onPerfor
   const timesPerfs = (perfs ?? []).filter(p => timesConcession(p) !== null)
   const availableTimesPerfs = timesPerfs.filter(hasTimesAvailability)
   const bookHref = `https://edfest.com/whats-on/${event.slug}/book`
-  const checkoutHref = 'https://edfest.com/checkout'
+  const checkoutHref = 'https://edfest.com/account/basket'
   const hero = heroImageUrl(event.image_thumbnail)
   const ageRating = event.minimum_age || event.raw_data?.ageSuitabilityTitle || null
   const sanitizedDesc = useMemo(() => sanitizeHtml(event.description), [event.description])

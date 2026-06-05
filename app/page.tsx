@@ -210,7 +210,7 @@ export default function Home() {
         hasCookie={hasCookie}
         firstName={firstName}
         basketCount={basketCount}
-        onAccountClick={() => setShowCookieSetup(true)}
+        onSettingsClick={() => setShowCookieSetup(true)}
       />
 
       <main className="mx-auto max-w-7xl px-4 py-6">
