@@ -114,7 +114,7 @@ function PerformanceRow({ perf, eventId, hasCookie, onNeedCookie, onBasketSucces
 
   // Build the basket payload: pricebandid -> 0 (no full-price), pricebandid_concessionid -> quantity
   const pricebandId = currentPerf.prices?.[0]?.pricebandid
-  const concessionId = Math.abs(c.concessionid ?? 0)
+  const concessionId = c.concessionid ?? 0
   const maxQuantity = c.remainingLimitValue ?? 4
 
   async function addToBasket() {
