@@ -11,6 +11,7 @@ interface EventModalProps {
 }
 
 const TIMES_CODE = 'TIMESGIVEAWAY'
+const TIMES_PROMO_CODE = 'TIMESPLUSEDF26'
 
 function fmtDate(dt: string): string {
   const d = new Date(dt.replace(' ', 'T'))
@@ -108,7 +109,7 @@ function PerformanceRow({ perf, eventId, hasCookie, onNeedCookie, onBasketSucces
     const ticket: Record<string, number | string> = {}
     ticket[String(pricebandId)] = 0
     ticket[`${pricebandId}_${concessionId}`] = quantity
-    ticket[`${pricebandId}_${concessionId}_promocode`] = TIMES_CODE
+    ticket[`${pricebandId}_${concessionId}_promocode`] = TIMES_PROMO_CODE
 
     const payload = { event: eventId, performance: currentPerf.id, ticket }
 
