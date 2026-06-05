@@ -140,7 +140,7 @@ function PerformanceRow({ perf, eventId, hasCookie, onNeedCookie, onBasketSucces
         body: JSON.stringify(payload),
       })
       const data = await res.json()
-      if (res.ok && (data.success || data.message)) {
+      if (res.ok && data.success === true) {
         setBasketState('success')
         onBasketSuccess(`Added ${quantity} ticket${quantity !== 1 ? 's' : ''} for ${fmtDate(currentPerf.datetime)}`, quantity)
       } else {
@@ -284,7 +284,23 @@ export function EventModal({ event, cachedPerfs, onClose, onNeedCookie, onPerfor
 
   function handleBasketSuccess(msg: string, quantity: number) {
     setBasketMsg(msg)
-    setBasketCount(n => (n ?? 0) + quantity)
+    const cookie = getCookie()
+    if (cookie) {
+      fetch('/api/basket', {
+        headers: { 'x-edfest-cookie': cookie },
+      })
+        .then(r => r.json())
+        .then(d => {
+          if (d.basket?.summary?.notickets != null) {
+            setBasketCount(d.basket.summary.notickets)
+          } else {
+            setBasketCount(n => (n ?? 0) + quantity)
+          }
+        })
+        .catch(() => setBasketCount(n => (n ?? 0) + quantity))
+    } else {
+      setBasketCount(n => (n ?? 0) + quantity)
+    }
     setTimeout(() => setBasketMsg(null), 5000)
   }
 

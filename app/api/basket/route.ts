@@ -86,6 +86,20 @@ export async function POST(req: NextRequest) {
     } else {
       data = { success: true, message: 'Item added to basket' }
     }
+
+    if (!res.ok) {
+      const message = data?.error || data?.message || 'Failed to add item to basket'
+      return NextResponse.json(
+        {
+          success: false,
+          error: message,
+          upstreamStatus: res.status,
+          upstream: data,
+        },
+        { status: res.status === 500 ? 502 : res.status }
+      )
+    }
+
     return NextResponse.json(data, { status: 200 })
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Unknown error'
