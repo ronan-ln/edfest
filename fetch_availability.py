@@ -95,8 +95,8 @@ def has_timesgiveaway_concession(performance):
 
 
 def filter_timesgiveaway_performances(performances):
-    """Keep all performances (we'll filter by actual TIMESGIVEAWAY in individual fetches)."""
-    return performances or []
+    """Keep only performances that contain at least one TIMESGIVEAWAY concession."""
+    return [p for p in (performances or []) if has_timesgiveaway_concession(p)]
 
 
 def count_timesgiveaway_available(performances):
