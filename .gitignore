@@ -2,14 +2,15 @@
 __pycache__/
 *.py[cod]
 
-
 # Next.js
-edfest-browser/.next/
-edfest-browser/node_modules/
-edfest-browser/.env.local
+.next/
+node_modules/
+.env.local
 
 # OS
 .DS_Store
 
 # HAR files contain session cookies — never commit
 *.har
+node_modules/
+node_modules/
