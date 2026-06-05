@@ -56,6 +56,14 @@ def fetch_performances(session, slug):
     return resp.json()
 
 
+def fetch_performance_detail(session, slug, perf_id):
+    """Fetch individual performance for live availability."""
+    url = f"https://edfest.com/api/projects/{slug}/performances/{perf_id}"
+    resp = session.get(url, headers=HEADERS, timeout=30)
+    resp.raise_for_status()
+    return resp.json()
+
+
 TIMESGIVEAWAY_CODE = "TIMESGIVEAWAY"
 
 
@@ -155,10 +163,22 @@ def main():
         else:
             raw = data.get("cache", []) if isinstance(data, dict) else []
             filtered = filter_timesgiveaway_performances(raw)
-            available = count_timesgiveaway_available(filtered)
+
+            # Fetch individual performance details for each with TIMESGIVEAWAY
+            detailed = []
+            for perf in filtered:
+                try:
+                    detail = fetch_performance_detail(session, slug, perf.get("id"))
+                    detailed.append(detail)
+                    time.sleep(random.uniform(0.5, 1.5))
+                except requests.RequestException as e:
+                    print(f"  Warning: failed to fetch detail for {perf.get('id')}: {e}", file=sys.stderr)
+                    detailed.append(perf)
+
+            available = count_timesgiveaway_available(detailed)
             results[slug] = {
                 "fetchedAt": datetime.now(timezone.utc).isoformat(),
-                "performances": filtered,
+                "performances": detailed,
             }
             print(
                 f"{slug} ({idx}/{total}) - {len(raw)} performances, "
