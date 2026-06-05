@@ -229,7 +229,6 @@ export function EventModal({ event, cachedPerfs, onClose, onNeedCookie, onPerfor
   const [loading, setLoading] = useState(!cachedPerfs)
   const [error, setError] = useState<string | null>(null)
   const [basketMsg, setBasketMsg] = useState<string | null>(null)
-  const [basketCount, setBasketCount] = useState<number | null>(null)
   const [hasCookie, setHasCookie] = useState(false)
 
   useEffect(() => {
@@ -264,43 +263,14 @@ export function EventModal({ event, cachedPerfs, onClose, onNeedCookie, onPerfor
     return () => { cancelled = true }
   }, [event.slug, cachedPerfs])
 
-  // Fetch basket count when cookie is present
-  useEffect(() => {
-    const cookie = getCookie()
-    if (!cookie) return
-    fetch('/api/basket', {
-      headers: { 'x-edfest-cookie': cookie },
-    })
-      .then(r => r.json())
-      .then(d => { if (d.basket?.summary?.notickets != null) setBasketCount(d.basket.summary.notickets) })
-      .catch(() => {})
-  }, [])
-
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  function handleBasketSuccess(msg: string, quantity: number) {
+  function handleBasketSuccess(msg: string) {
     setBasketMsg(msg)
-    const cookie = getCookie()
-    if (cookie) {
-      fetch('/api/basket', {
-        headers: { 'x-edfest-cookie': cookie },
-      })
-        .then(r => r.json())
-        .then(d => {
-          if (d.basket?.summary?.notickets != null) {
-            setBasketCount(d.basket.summary.notickets)
-          } else {
-            setBasketCount(n => (n ?? 0) + quantity)
-          }
-        })
-        .catch(() => setBasketCount(n => (n ?? 0) + quantity))
-    } else {
-      setBasketCount(n => (n ?? 0) + quantity)
-    }
     setTimeout(() => setBasketMsg(null), 5000)
   }
 
@@ -320,7 +290,16 @@ export function EventModal({ event, cachedPerfs, onClose, onNeedCookie, onPerfor
     onPerformanceUpdated(slug, perf)
   }
 
-  const timesPerfs = (perfs ?? []).filter(p => timesConcession(p) !== null)
+  const timesPerfs = (perfs ?? [])
+    .filter((p) => timesConcession(p) !== null)
+    .sort((a, b) => {
+      const ta = new Date(a.datetime.replace(' ', 'T')).getTime()
+      const tb = new Date(b.datetime.replace(' ', 'T')).getTime()
+      if (isNaN(ta) && isNaN(tb)) return a.datetime.localeCompare(b.datetime)
+      if (isNaN(ta)) return 1
+      if (isNaN(tb)) return -1
+      return ta - tb
+    })
   const availableTimesPerfs = timesPerfs.filter(hasTimesAvailability)
   const bookHref = `https://edfest.com/whats-on/${event.slug}/book`
   const hero = heroImageUrl(event.image_thumbnail)
@@ -397,11 +376,6 @@ export function EventModal({ event, cachedPerfs, onClose, onNeedCookie, onPerfor
                 <path d="M6 3h7v7M13 3L3 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
               </svg>
             </a>
-            {hasCookie && basketCount != null && (
-              <span className="inline-flex items-center gap-2 rounded-lg border border-green-400/30 px-4 py-2 text-sm font-semibold text-green-400">
-                Basket: {basketCount} ticket{basketCount !== 1 ? 's' : ''}
-              </span>
-            )}
           </div>
         </div>
 

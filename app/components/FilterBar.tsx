@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useRef } from 'react'
 import Link from 'next/link'
 
 interface FilterBarProps {
@@ -16,6 +17,7 @@ interface FilterBarProps {
   firstName: string
   basketCount: number | null
   onSettingsClick: () => void
+  onBasketInView: () => void
 }
 
 export function FilterBar({
@@ -32,7 +34,28 @@ export function FilterBar({
   firstName,
   basketCount,
   onSettingsClick,
+  onBasketInView,
 }: FilterBarProps) {
+  const basketLinkRef = useRef<HTMLAnchorElement | null>(null)
+
+  useEffect(() => {
+    if (!hasCookie) return
+    const node = basketLinkRef.current
+    if (!node) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          onBasketInView()
+        }
+      },
+      { threshold: 0.2 }
+    )
+
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [hasCookie, onBasketInView])
+
   return (
     <div className="sticky top-0 z-20 border-b border-gray-800 bg-gray-950/90 backdrop-blur-md">
       <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:gap-4">
@@ -70,9 +93,12 @@ export function FilterBar({
           </span>
           {hasCookie && (
             <Link
+              ref={basketLinkRef}
               href="https://edfest.com/account/basket"
               target="_blank"
               rel="noopener noreferrer"
+              onMouseEnter={onBasketInView}
+              onFocus={onBasketInView}
               className="flex items-center gap-1.5 rounded-lg border border-gray-700 px-3 py-2 text-sm font-medium text-gray-300 transition hover:border-green-400 hover:text-green-400"
             >
               <span className="text-base">🎟️</span>

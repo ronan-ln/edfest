@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { AvailabilityCache, Event, Performance } from './types'
 import { FilterBar } from './components/FilterBar'
 import { EventCard } from './components/EventCard'
@@ -36,6 +36,26 @@ export default function Home() {
   const [basketCount, setBasketCount] = useState<number | null>(null)
   const [availLoading, setAvailLoading] = useState(true)
 
+  const refreshBasketCount = useCallback(() => {
+    const cookie = getCookie()
+    if (!cookie) {
+      setBasketCount(null)
+      return
+    }
+
+    fetch('/api/basket', {
+      headers: { 'x-edfest-cookie': cookie },
+      cache: 'no-store',
+    })
+      .then(r => r.json())
+      .then(d => {
+        if (d.basket?.summary?.notickets != null) {
+          setBasketCount(d.basket.summary.notickets)
+        }
+      })
+      .catch(() => {})
+  }, [])
+
   useEffect(() => {
     const cookie = getCookie()
     setHasCookie(!!cookie)
@@ -44,15 +64,8 @@ export default function Home() {
     if (!cookie && !localStorage.getItem('edfest_setup_dismissed')) {
       setShowCookieSetup(true)
     }
-    if (cookie) {
-      fetch('/api/basket', {
-        headers: { 'x-edfest-cookie': cookie },
-      })
-        .then(r => r.json())
-        .then(d => { if (d.basket?.summary?.notickets != null) setBasketCount(d.basket.summary.notickets) })
-        .catch(() => {})
-    }
-  }, [])
+    if (cookie) refreshBasketCount()
+  }, [refreshBasketCount])
 
   // Sync modal open/close with browser history so the back button closes it
   useEffect(() => {
@@ -211,6 +224,7 @@ export default function Home() {
         firstName={firstName}
         basketCount={basketCount}
         onSettingsClick={() => setShowCookieSetup(true)}
+        onBasketInView={refreshBasketCount}
       />
 
       <main className="mx-auto max-w-7xl px-4 py-6">
@@ -279,6 +293,7 @@ export default function Home() {
           onSaved={(name) => {
             setHasCookie(true)
             if (name) setFirstName(name)
+            refreshBasketCount()
           }}
         />
       )}
