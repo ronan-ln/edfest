@@ -743,6 +743,7 @@ function PurchasesPageContent() {
                           key={event.key}
                           type="button"
                           onClick={() => setSelectedEvent(event)}
+                          title={`${event.event}\n${formatTimeLabel(event.startMinutes)} - ${formatTimeLabel(event.endMinutes)} (${event.durationMinutes} min)\n${event.venue} · ${event.subvenue}\n${event.ticketCount} ticket${event.ticketCount !== 1 ? 's' : ''}`}
                           className={`absolute z-10 overflow-hidden rounded-2xl border text-left shadow-lg shadow-black/25 transition hover:-translate-y-0.5 hover:shadow-xl ${compact ? 'p-2' : 'p-3'}`}
                           style={{
                             top: `${top}px`,
