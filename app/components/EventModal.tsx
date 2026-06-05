@@ -270,7 +270,29 @@ export function EventModal({ event, onClose, onNeedCookie, onPerformanceUpdated 
     setTimeout(() => setBasketMsg(null), 5000)
   }
 
+  function handlePerformanceUpdated(slug: string, perf: Performance) {
+    setPerfs((prev) => {
+      if (!prev) return prev
+      const id = String(perf.id)
+      const idx = prev.findIndex((p) => String(p.id) === id)
+      const next = [...prev]
+      if (idx >= 0) {
+        next[idx] = perf
+      } else {
+        next.push(perf)
+      }
+      return next
+    })
+    onPerformanceUpdated(slug, perf)
+  }
+
   const timesPerfs = (perfs ?? []).filter(p => timesConcession(p) !== null)
+  const availableTimesPerfs = timesPerfs.filter((perf) => {
+    const c = timesConcession(perf)
+    if (!c) return false
+    const promoAvailable = c.remainingLimitValue == null || c.remainingLimitValue > 0
+    return promoAvailable && !perf.is_sold_out && perf.availability > 0
+  })
   const bookHref = `https://edfest.com/whats-on/${event.slug}/book`
   const checkoutHref = 'https://edfest.com/checkout'
   const hero = heroImageUrl(event.image_thumbnail)
@@ -391,7 +413,7 @@ export function EventModal({ event, onClose, onNeedCookie, onPerformanceUpdated 
         <div className="p-5">
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-400">Times Giveaway availability</h3>
-            {!hasCookie && timesPerfs.length > 0 && (
+            {!hasCookie && availableTimesPerfs.length > 0 && (
               <button
                 type="button"
                 onClick={onNeedCookie}
@@ -424,15 +446,15 @@ export function EventModal({ event, onClose, onNeedCookie, onPerformanceUpdated 
             </p>
           )}
 
-          {!loading && !error && timesPerfs.length === 0 && (
+          {!loading && !error && availableTimesPerfs.length === 0 && (
             <p className="rounded-lg border border-gray-800 bg-gray-950 p-3 text-sm text-gray-500">
-              No Times Giveaway performances found for this show.
+              No Times Giveaway availability right now.
             </p>
           )}
 
-          {!loading && !error && timesPerfs.length > 0 && (
+          {!loading && !error && availableTimesPerfs.length > 0 && (
             <ul className="divide-y divide-gray-800 overflow-hidden rounded-lg border border-gray-800">
-              {timesPerfs.map((perf) => (
+              {availableTimesPerfs.map((perf) => (
                 <PerformanceRow
                   key={perf.id}
                   perf={perf}
@@ -441,7 +463,7 @@ export function EventModal({ event, onClose, onNeedCookie, onPerformanceUpdated 
                   onNeedCookie={onNeedCookie}
                   onBasketSuccess={handleBasketSuccess}
                   slug={event.slug}
-                  onPerformanceUpdated={onPerformanceUpdated}
+                  onPerformanceUpdated={handlePerformanceUpdated}
                 />
               ))}
             </ul>
