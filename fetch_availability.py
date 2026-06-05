@@ -66,18 +66,20 @@ def fetch_performance_detail(session, slug, perf_id):
 
 
 def fetch_perf_with_logging(session, slug, perf):
-    """Fetch individual performance detail and log results."""
+    """Fetch individual performance detail and log results. Only save if it has TIMESGIVEAWAY."""
     perf_id = perf.get("id")
     datetime_str = perf.get("datetime")
     try:
         detail = fetch_performance_detail(session, slug, perf_id)
         remaining = detail.get("prices", [{}])[0].get("concessions", [])
-        remaining = next((c.get("remainingLimitValue") for c in remaining if c.get("code") == "TIMESGIVEAWAY"), None)
-        print(f"  • {datetime_str} (id: {perf_id}) - slots: {remaining}")
-        return detail
+        remaining_value = next((c.get("remainingLimitValue") for c in remaining if c.get("code") == "TIMESGIVEAWAY"), None)
+        if remaining_value is not None:
+            print(f"  • {datetime_str} (id: {perf_id}) - slots: {remaining_value}")
+            return detail
+        return None
     except requests.RequestException as e:
         print(f"  • {datetime_str} (id: {perf_id}) - ERROR: {e}", file=sys.stderr)
-        return perf
+        return None
 
 
 TIMESGIVEAWAY_CODE = "TIMESGIVEAWAY"
@@ -93,8 +95,8 @@ def has_timesgiveaway_concession(performance):
 
 
 def filter_timesgiveaway_performances(performances):
-    """Keep only performances that contain at least one TIMESGIVEAWAY concession."""
-    return [p for p in (performances or []) if has_timesgiveaway_concession(p)]
+    """Keep all performances (we'll filter by actual TIMESGIVEAWAY in individual fetches)."""
+    return performances or []
 
 
 def count_timesgiveaway_available(performances):
@@ -186,7 +188,9 @@ def main():
             with ThreadPoolExecutor(max_workers=4) as executor:
                 futures = {executor.submit(fetch_perf_with_logging, session, slug, perf): perf for perf in filtered}
                 for future in as_completed(futures):
-                    detailed.append(future.result())
+                    result = future.result()
+                    if result:
+                        detailed.append(result)
 
             available = count_timesgiveaway_available(detailed)
             results[slug] = {
