@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Fetch performance availability for every event slug in offers_all.json."""
 
+import argparse
 import json
 import os
 import random
@@ -82,6 +83,15 @@ def fetch_perf_with_logging(session, slug, perf):
         return None
 
 
+def is_within_date_range(datetime_str):
+    """Check if datetime is between Aug 5-12 inclusive."""
+    try:
+        dt = datetime.fromisoformat(datetime_str.replace(' ', 'T'))
+        return dt.month == 8 and 5 <= dt.day <= 12
+    except (ValueError, AttributeError):
+        return False
+
+
 TIMESGIVEAWAY_CODE = "TIMESGIVEAWAY"
 
 
@@ -119,35 +129,44 @@ def count_timesgiveaway_available(performances):
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--slug', help='Process a specific event slug')
+    args = parser.parse_args()
+
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-    offers = load_offers(OFFERS_FILE)
     results = load_existing(OUTPUT_FILE)
 
-    slugs = []
-    seen = set()
-    skipped_offer_code = 0
-    skipped_duplicate = 0
-    for offer in offers:
-        slug = offer.get("slug")
-        if not slug:
-            continue
-        if (offer.get("offer_code") or "") != TIMESGIVEAWAY_CODE:
-            skipped_offer_code += 1
-            continue
-        if slug in seen:
-            skipped_duplicate += 1
-            continue
-        seen.add(slug)
-        slugs.append(slug)
+    if args.slug:
+        slugs = [args.slug]
+        print(f"Processing single slug: {args.slug}")
+    else:
+        offers = load_offers(OFFERS_FILE)
+        slugs = []
+        seen = set()
+        skipped_offer_code = 0
+        skipped_duplicate = 0
+        for offer in offers:
+            slug = offer.get("slug")
+            if not slug:
+                continue
+            if (offer.get("offer_code") or "") != TIMESGIVEAWAY_CODE:
+                skipped_offer_code += 1
+                continue
+            if slug in seen:
+                skipped_duplicate += 1
+                continue
+            seen.add(slug)
+            slugs.append(slug)
+
+        print(f"Total records in offers_all.json: {len(offers)}")
+        print(f"Skipped (offer_code != {TIMESGIVEAWAY_CODE}): {skipped_offer_code}")
+        print(f"Skipped (duplicate slug): {skipped_duplicate}")
 
     total = len(slugs)
     already = sum(1 for s in slugs if s in results)
     todo = total - already
 
-    print(f"Total records in offers_all.json: {len(offers)}")
-    print(f"Skipped (offer_code != {TIMESGIVEAWAY_CODE}): {skipped_offer_code}")
-    print(f"Skipped (duplicate slug): {skipped_duplicate}")
     print(f"Unique slugs to crawl: {total}")
     print(f"Already fetched: {already}")
     print(f"Remaining: {todo}")
@@ -181,7 +200,8 @@ def main():
         else:
             raw = data.get("cache", []) if isinstance(data, dict) else []
             filtered = filter_timesgiveaway_performances(raw)
-            print(f"{slug} ({idx}/{total}) - fetched {len(raw)} performances, checking all for TIMESGIVEAWAY")
+            filtered = [p for p in filtered if is_within_date_range(p.get("datetime", ""))]
+            print(f"{slug} ({idx}/{total}) - fetched {len(raw)} performances, checking {len(filtered)} for TIMESGIVEAWAY (Aug 5-12)")
 
             # Fetch individual performance details in parallel
             detailed = []
