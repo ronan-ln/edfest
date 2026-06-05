@@ -263,6 +263,7 @@ export default function Home() {
       {selected && (
         <EventModal
           event={selected}
+          cachedPerfs={cache[selected.slug]?.performances ?? null}
           onClose={() => window.history.back()}
           onNeedCookie={() => setShowCookieSetup(true)}
           onPerformanceUpdated={updateCachedPerformance}

@@ -6,6 +6,7 @@ import { getCookie } from './CookieSetup'
 
 interface EventModalProps {
   event: Event
+  cachedPerfs: Performance[] | null
   onClose: () => void
   onNeedCookie: () => void
   onPerformanceUpdated: (slug: string, perf: Performance) => void
@@ -223,9 +224,9 @@ function PerformanceRow({ perf, eventId, hasCookie, onNeedCookie, onBasketSucces
   )
 }
 
-export function EventModal({ event, onClose, onNeedCookie, onPerformanceUpdated }: EventModalProps) {
-  const [perfs, setPerfs] = useState<Performance[] | null>(null)
-  const [loading, setLoading] = useState(true)
+export function EventModal({ event, cachedPerfs, onClose, onNeedCookie, onPerformanceUpdated }: EventModalProps) {
+  const [perfs, setPerfs] = useState<Performance[] | null>(cachedPerfs)
+  const [loading, setLoading] = useState(!cachedPerfs)
   const [error, setError] = useState<string | null>(null)
   const [basketMsg, setBasketMsg] = useState<string | null>(null)
   const [basketCount, setBasketCount] = useState<number | null>(null)
@@ -236,6 +237,12 @@ export function EventModal({ event, onClose, onNeedCookie, onPerformanceUpdated 
   }, [])
 
   useEffect(() => {
+    setPerfs(cachedPerfs)
+    setLoading(!cachedPerfs)
+  }, [event.slug, cachedPerfs])
+
+  useEffect(() => {
+    if (cachedPerfs) return
     let cancelled = false
     setLoading(true)
     setError(null)
@@ -255,7 +262,7 @@ export function EventModal({ event, onClose, onNeedCookie, onPerformanceUpdated 
         setLoading(false)
       })
     return () => { cancelled = true }
-  }, [event.slug])
+  }, [event.slug, cachedPerfs])
 
   // Fetch basket count when cookie is present
   useEffect(() => {
