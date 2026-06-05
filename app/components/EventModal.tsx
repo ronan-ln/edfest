@@ -323,7 +323,6 @@ export function EventModal({ event, cachedPerfs, onClose, onNeedCookie, onPerfor
   const timesPerfs = (perfs ?? []).filter(p => timesConcession(p) !== null)
   const availableTimesPerfs = timesPerfs.filter(hasTimesAvailability)
   const bookHref = `https://edfest.com/whats-on/${event.slug}/book`
-  const checkoutHref = 'https://edfest.com/account/basket'
   const hero = heroImageUrl(event.image_thumbnail)
   const ageRating = event.minimum_age || event.raw_data?.ageSuitabilityTitle || null
   const sanitizedDesc = useMemo(() => sanitizeHtml(event.description), [event.description])
@@ -399,17 +398,9 @@ export function EventModal({ event, cachedPerfs, onClose, onNeedCookie, onPerfor
               </svg>
             </a>
             {hasCookie && basketCount != null && (
-              <a
-                href={checkoutHref}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 rounded-lg bg-green-400 px-4 py-2 text-sm font-semibold text-gray-950 hover:bg-green-300"
-              >
-                Checkout ({basketCount} ticket{basketCount !== 1 ? 's' : ''})
-                <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
-                  <path d="M6 3h7v7M13 3L3 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                </svg>
-              </a>
+              <span className="inline-flex items-center gap-2 rounded-lg border border-green-400/30 px-4 py-2 text-sm font-semibold text-green-400">
+                Basket: {basketCount} ticket{basketCount !== 1 ? 's' : ''}
+              </span>
             )}
           </div>
         </div>
@@ -456,9 +447,6 @@ export function EventModal({ event, cachedPerfs, onClose, onNeedCookie, onPerfor
           {basketMsg && (
             <div className="mb-3 flex items-center justify-between rounded-lg border border-green-400/30 bg-green-400/10 px-3 py-2 text-sm text-green-400">
               <span>✓ {basketMsg}</span>
-              <a href={checkoutHref} target="_blank" rel="noopener noreferrer" className="ml-3 font-semibold underline">
-                Checkout →
-              </a>
             </div>
           )}
 
