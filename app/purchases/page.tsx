@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { startTransition, useEffect, useMemo, useState } from 'react'
+import { Suspense, startTransition, useEffect, useMemo, useState } from 'react'
 import { getCookie } from '../components/CookieSetup'
 
 const DAY_START_MINUTES = 10 * 60
@@ -332,7 +332,7 @@ function DiaryModal({
   )
 }
 
-export default function PurchasesPage() {
+function PurchasesPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [events, setEvents] = useState<FlatEvent[]>([])
@@ -784,5 +784,43 @@ export default function PurchasesPage() {
         />
       )}
     </div>
+  )
+}
+
+function PurchasesFallback() {
+  return (
+    <div className="min-h-screen flex-1 bg-gray-950 text-gray-100">
+      <header className="border-b border-gray-800 bg-gray-950">
+        <div className="mx-auto max-w-7xl px-4 py-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-100">My Tickets</h1>
+              <p className="text-sm text-gray-400">Loading your purchases...</p>
+            </div>
+            <Link
+              href="/"
+              className="rounded-lg border border-gray-700 bg-gray-900 px-4 py-2 text-sm font-medium text-gray-200 hover:border-green-400 hover:text-green-400"
+            >
+              ← Browse shows
+            </Link>
+          </div>
+        </div>
+      </header>
+
+      <main className="mx-auto max-w-7xl px-4 py-6">
+        <div className="flex items-center gap-3 py-12 text-sm text-gray-400">
+          <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-700 border-t-green-400" />
+          Loading your tickets...
+        </div>
+      </main>
+    </div>
+  )
+}
+
+export default function PurchasesPage() {
+  return (
+    <Suspense fallback={<PurchasesFallback />}>
+      <PurchasesPageContent />
+    </Suspense>
   )
 }
