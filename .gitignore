@@ -10,3 +10,6 @@ edfest-browser/.env.local
 
 # OS
 .DS_Store
+
+# HAR files contain session cookies — never commit
+*.har

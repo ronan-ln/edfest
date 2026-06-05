@@ -5,6 +5,7 @@ import type { AvailabilityCache, Event, Performance } from './types'
 import { FilterBar } from './components/FilterBar'
 import { EventCard } from './components/EventCard'
 import { EventModal } from './components/EventModal'
+import { CookieSetup, getCookie } from './components/CookieSetup'
 
 const TIMES_CODE = 'TIMESGIVEAWAY'
 
@@ -28,6 +29,10 @@ export default function Home() {
   const [promoOnly, setPromoOnly] = useState(false)
   const [selected, setSelected] = useState<Event | null>(null)
   const [visibleLimit, setVisibleLimit] = useState(60)
+  const [showCookieSetup, setShowCookieSetup] = useState(false)
+  const [hasCookie, setHasCookie] = useState(false)
+
+  useEffect(() => { setHasCookie(!!getCookie()) }, [])
 
   // Sync modal open/close with browser history so the back button closes it
   useEffect(() => {
@@ -114,6 +119,13 @@ export default function Home() {
               {events.length.toLocaleString()} shows · click any card to check Times Giveaway availability
             </p>
           </div>
+          <button
+            type="button"
+            onClick={() => setShowCookieSetup(true)}
+            className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition ${hasCookie ? 'border-green-400/40 text-green-400 hover:bg-green-400/10' : 'border-gray-700 text-gray-400 hover:border-green-400 hover:text-green-400'}`}
+          >
+            {hasCookie ? '✓ Connected' : '⚙ Connect to edfest.com'}
+          </button>
         </div>
       </header>
 
@@ -182,9 +194,15 @@ export default function Home() {
       {selected && (
         <EventModal
           event={selected}
-          onClose={() => {
-            window.history.back()
-          }}
+          onClose={() => window.history.back()}
+          onNeedCookie={() => setShowCookieSetup(true)}
+        />
+      )}
+
+      {showCookieSetup && (
+        <CookieSetup
+          onClose={() => setShowCookieSetup(false)}
+          onSaved={() => setHasCookie(true)}
         />
       )}
     </div>

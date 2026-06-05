@@ -47,6 +47,7 @@ export interface Concession {
   promoCodeRequired: boolean
   limitValue: number
   remainingLimitValue: number
+  concessionid?: number
   description: string
 }
 
@@ -55,6 +56,7 @@ export interface PriceBand {
   pricetype: string
   availabilityLevel: string
   seatPercentageRemaining: number
+  pricebandid?: number
   concessions: Concession[]
 }
 
