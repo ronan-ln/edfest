@@ -62,6 +62,8 @@ function PerformanceRow({ perf, eventId, hasCookie, onNeedCookie, onBasketSucces
   const promoAvailable = c.remainingLimitValue == null || c.remainingLimitValue > 0
   const available = promoAvailable && !perf.is_sold_out
   const [basketState, setBasketState] = useState<BasketState>('idle')
+  const [quantity, setQuantity] = useState(2)
+  const [error, setError] = useState<string | null>(null)
 
   const promoLabel = perf.is_sold_out
     ? 'Sold out'
@@ -71,18 +73,20 @@ function PerformanceRow({ perf, eventId, hasCookie, onNeedCookie, onBasketSucces
     ? `${c.remainingLimitValue} promo slots`
     : 'Promo available'
 
-  // Build the basket payload: pricebandid -> 0 (no full-price), pricebandid_concessionid -> 2
+  // Build the basket payload: pricebandid -> 0 (no full-price), pricebandid_concessionid -> quantity
   const pricebandId = perf.prices?.[0]?.pricebandid
   const concessionId = Math.abs(c.concessionid ?? 0)
+  const maxQuantity = c.remainingLimitValue ?? 4
 
   async function addToBasket() {
     if (!hasCookie) { onNeedCookie(); return }
     if (!pricebandId) return
 
     setBasketState('adding')
+    setError(null)
     const ticket: Record<string, number> = {}
     ticket[String(pricebandId)] = 0
-    ticket[`${pricebandId}_${concessionId}`] = 2
+    ticket[`${pricebandId}_${concessionId}`] = quantity
 
     const payload = { event: eventId, performance: perf.id, ticket }
 
@@ -98,14 +102,16 @@ function PerformanceRow({ perf, eventId, hasCookie, onNeedCookie, onBasketSucces
       const data = await res.json()
       if (res.ok && data.success) {
         setBasketState('success')
-        onBasketSuccess(`Added 2 tickets for ${fmtDate(perf.datetime)}`)
+        onBasketSuccess(`Added ${quantity} ticket${quantity !== 1 ? 's' : ''} for ${fmtDate(perf.datetime)}`)
       } else {
+        setError(data.message || data.error || 'Failed to add to basket')
         setBasketState('error')
-        setTimeout(() => setBasketState('idle'), 3000)
+        setTimeout(() => setBasketState('idle'), 4000)
       }
-    } catch {
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Request failed')
       setBasketState('error')
-      setTimeout(() => setBasketState('idle'), 3000)
+      setTimeout(() => setBasketState('idle'), 4000)
     }
   }
 
@@ -115,35 +121,49 @@ function PerformanceRow({ perf, eventId, hasCookie, onNeedCookie, onBasketSucces
         <p className="text-sm font-medium text-gray-100">{fmtDate(perf.datetime)}</p>
         <p className="text-xs text-gray-500">{perf.availability} seats available</p>
       </div>
-      <div className="flex items-center gap-2 self-start sm:self-auto">
-        <span
-          className={
-            available
-              ? 'rounded-full bg-green-400/10 px-2 py-1 text-xs font-semibold text-green-400'
-              : 'rounded-full bg-gray-800 px-2 py-1 text-xs font-semibold text-gray-500'
-          }
-        >
-          {promoLabel}
-        </span>
+      <div className="flex flex-col gap-2 self-start sm:self-auto">
+        <div className="flex items-center gap-2">
+          <span
+            className={
+              available
+                ? 'rounded-full bg-green-400/10 px-2 py-1 text-xs font-semibold text-green-400'
+                : 'rounded-full bg-gray-800 px-2 py-1 text-xs font-semibold text-gray-500'
+            }
+          >
+            {promoLabel}
+          </span>
 
-        {available && basketState !== 'success' && hasCookie && (
-            <button
-              type="button"
-              onClick={addToBasket}
-              disabled={basketState === 'adding'}
-              className="rounded-lg bg-green-400 px-3 py-1 text-xs font-semibold text-gray-950 hover:bg-green-300 disabled:opacity-60"
-            >
-              {basketState === 'adding' ? 'Adding…' : basketState === 'error' ? 'Failed — retry' : '+ Basket'}
-            </button>
-        )}
+          {available && basketState !== 'success' && hasCookie && (
+            <>
+              <select
+                value={quantity}
+                onChange={(e) => setQuantity(Math.min(parseInt(e.target.value), maxQuantity))}
+                disabled={basketState === 'adding'}
+                className="rounded-lg border border-gray-700 bg-gray-950 px-2 py-1 text-xs text-gray-300 focus:border-green-400 focus:outline-none disabled:opacity-40"
+              >
+                {[1, 2, 3, 4].map(n => n <= maxQuantity && <option key={n} value={n}>{n}</option>)}
+              </select>
+              <button
+                type="button"
+                onClick={addToBasket}
+                disabled={basketState === 'adding'}
+                className="rounded-lg bg-green-400 px-3 py-1 text-xs font-semibold text-gray-950 hover:bg-green-300 disabled:opacity-60"
+              >
+                {basketState === 'adding' ? 'Adding…' : '+ Basket'}
+              </button>
+            </>
+          )}
 
-        {basketState === 'success' && (
-          <span className="text-xs font-semibold text-green-400">✓ Added!</span>
+          {basketState === 'success' && (
+            <span className="text-xs font-semibold text-green-400">✓ Added!</span>
+          )}
+        </div>
+        {error && (
+          <p className="text-xs text-red-400">{error}</p>
         )}
       </div>
     </li>
   )
-}
 
 export function EventModal({ event, onClose, onNeedCookie }: EventModalProps) {
   const [perfs, setPerfs] = useState<Performance[] | null>(null)
