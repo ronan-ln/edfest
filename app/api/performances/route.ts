@@ -10,12 +10,6 @@ const HEADERS = {
   'Referer': 'https://edfest.com/',
 }
 
-function hasTimesGiveaway(perf: any): boolean {
-  return perf.prices?.some((p: any) =>
-    p.concessions?.some((c: any) => c.code === 'TIMESGIVEAWAY')
-  )
-}
-
 export async function GET(req: NextRequest) {
   const slug = req.nextUrl.searchParams.get('slug')
   if (!slug) return NextResponse.json({ error: 'missing slug' }, { status: 400 })
@@ -35,36 +29,7 @@ export async function GET(req: NextRequest) {
   }
 
   const data = await res.json()
-  const allPerfs: Performance[] = Array.isArray(data) ? data : (data.cache ?? [])
-
-  // Fetch individual performance endpoints for those with TIMESGIVEAWAY
-  const performances: Performance[] = []
-  for (const perf of allPerfs) {
-    if (!hasTimesGiveaway(perf)) {
-      performances.push(perf)
-      continue
-    }
-
-    try {
-      const detailRes = await fetch(
-        `https://edfest.com/api/projects/${slug}/performances/${perf.id}`,
-        {
-          headers: { ...HEADERS, Cookie: cookie },
-          cache: 'no-store',
-        }
-      )
-      if (detailRes.ok) {
-        const detail = await detailRes.json()
-        performances.push(detail)
-      } else {
-        console.warn(`Failed to fetch detail for ${perf.id}: ${detailRes.status}`)
-        performances.push(perf)
-      }
-    } catch (err) {
-      console.error(`Error fetching detail for ${perf.id}:`, err)
-      performances.push(perf)
-    }
-  }
+  const performances: Performance[] = Array.isArray(data) ? data : (data.cache ?? [])
 
   try {
     const existing = readAvailability() ?? {}

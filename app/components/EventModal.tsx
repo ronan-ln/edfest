@@ -55,15 +55,36 @@ interface PerformanceRowProps {
   hasCookie: boolean
   onNeedCookie: () => void
   onBasketSuccess: (msg: string, quantity: number) => void
+  slug: string
 }
 
-function PerformanceRow({ perf, eventId, hasCookie, onNeedCookie, onBasketSuccess }: PerformanceRowProps) {
-  const c = timesConcession(perf)!
-  const promoAvailable = c.remainingLimitValue == null || c.remainingLimitValue > 0
-  const available = promoAvailable && !perf.is_sold_out
+function PerformanceRow({ perf, eventId, hasCookie, onNeedCookie, onBasketSuccess, slug }: PerformanceRowProps) {
   const [basketState, setBasketState] = useState<BasketState>('idle')
   const [quantity, setQuantity] = useState(2)
   const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [livePerf, setLivePerf] = useState<Performance | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    fetch(`/api/performances/${slug}/${perf.id}`)
+      .then(r => r.json())
+      .then(data => {
+        if (!cancelled) setLivePerf(data)
+        setLoading(false)
+      })
+      .catch(() => {
+        if (!cancelled) setLivePerf(perf)
+        setLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [perf, slug])
+
+  const currentPerf = livePerf || perf
+  const c = timesConcession(currentPerf)!
+  const promoAvailable = c.remainingLimitValue == null || c.remainingLimitValue > 0
+  const available = promoAvailable && !currentPerf.is_sold_out
 
   const promoLabel = perf.is_sold_out
     ? 'Sold out'
@@ -74,7 +95,7 @@ function PerformanceRow({ perf, eventId, hasCookie, onNeedCookie, onBasketSucces
     : 'Promo available'
 
   // Build the basket payload: pricebandid -> 0 (no full-price), pricebandid_concessionid -> quantity
-  const pricebandId = perf.prices?.[0]?.pricebandid
+  const pricebandId = currentPerf.prices?.[0]?.pricebandid
   const concessionId = Math.abs(c.concessionid ?? 0)
   const maxQuantity = c.remainingLimitValue ?? 4
 
@@ -88,7 +109,7 @@ function PerformanceRow({ perf, eventId, hasCookie, onNeedCookie, onBasketSucces
     ticket[String(pricebandId)] = 0
     ticket[`${pricebandId}_${concessionId}`] = quantity
 
-    const payload = { event: eventId, performance: perf.id, ticket }
+    const payload = { event: eventId, performance: currentPerf.id, ticket }
 
     try {
       const res = await fetch('/api/basket', {
@@ -102,7 +123,7 @@ function PerformanceRow({ perf, eventId, hasCookie, onNeedCookie, onBasketSucces
       const data = await res.json()
       if (res.ok && (data.success || data.message)) {
         setBasketState('success')
-        onBasketSuccess(`Added ${quantity} ticket${quantity !== 1 ? 's' : ''} for ${fmtDate(perf.datetime)}`, quantity)
+        onBasketSuccess(`Added ${quantity} ticket${quantity !== 1 ? 's' : ''} for ${fmtDate(currentPerf.datetime)}`, quantity)
       } else {
         setError(data.message || data.error || `Error: ${res.status} - ${JSON.stringify(data)}`)
         setBasketState('error')
@@ -118,8 +139,17 @@ function PerformanceRow({ perf, eventId, hasCookie, onNeedCookie, onBasketSucces
   return (
     <li className="flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:justify-between">
       <div>
-        <p className="text-sm font-medium text-gray-100">{fmtDate(perf.datetime)}</p>
-        <p className="text-xs text-gray-500">{perf.availability} seats available</p>
+        <p className="text-sm font-medium text-gray-100">{fmtDate(currentPerf.datetime)}</p>
+        <p className="text-xs text-gray-500">
+          {loading ? (
+            <span className="inline-flex items-center gap-1">
+              <div className="h-2 w-2 animate-spin rounded-full border border-gray-600 border-t-gray-400" />
+              Checking availability...
+            </span>
+          ) : (
+            `${currentPerf.availability} seats available`
+          )}
+        </p>
       </div>
       <div className="flex flex-col gap-2 self-start sm:self-auto">
         <div className="flex items-center gap-2">
@@ -395,6 +425,7 @@ export function EventModal({ event, onClose, onNeedCookie }: EventModalProps) {
                   hasCookie={hasCookie}
                   onNeedCookie={onNeedCookie}
                   onBasketSuccess={handleBasketSuccess}
+                  slug={event.slug}
                 />
               ))}
             </ul>

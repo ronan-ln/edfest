@@ -163,16 +163,20 @@ def main():
         else:
             raw = data.get("cache", []) if isinstance(data, dict) else []
             filtered = filter_timesgiveaway_performances(raw)
+            print(f"{slug} ({idx}/{total}) - fetched {len(raw)} performances, {len(filtered)} with TIMESGIVEAWAY")
 
             # Fetch individual performance details for each with TIMESGIVEAWAY
             detailed = []
             for perf in filtered:
                 try:
                     detail = fetch_performance_detail(session, slug, perf.get("id"))
+                    remaining = detail.get("prices", [{}])[0].get("concessions", [])
+                    remaining = next((c.get("remainingLimitValue") for c in remaining if c.get("code") == "TIMESGIVEAWAY"), None)
+                    print(f"  • {perf.get('datetime')} (id: {perf.get('id')}) - slots: {remaining}")
                     detailed.append(detail)
                     time.sleep(random.uniform(0.5, 1.5))
                 except requests.RequestException as e:
-                    print(f"  Warning: failed to fetch detail for {perf.get('id')}: {e}", file=sys.stderr)
+                    print(f"  • {perf.get('datetime')} (id: {perf.get('id')}) - ERROR: {e}", file=sys.stderr)
                     detailed.append(perf)
 
             available = count_timesgiveaway_available(detailed)
@@ -180,10 +184,7 @@ def main():
                 "fetchedAt": datetime.now(timezone.utc).isoformat(),
                 "performances": detailed,
             }
-            print(
-                f"{slug} ({idx}/{total}) - {len(raw)} performances, "
-                f"{len(filtered)} with TIMESGIVEAWAY ({available} still available)"
-            )
+            print(f"  ✓ {available} performances still have availability")
 
         processed_since_save += 1
 
