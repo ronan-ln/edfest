@@ -95,8 +95,8 @@ def has_timesgiveaway_concession(performance):
 
 
 def filter_timesgiveaway_performances(performances):
-    """Keep only performances that contain at least one TIMESGIVEAWAY concession."""
-    return [p for p in (performances or []) if has_timesgiveaway_concession(p)]
+    """Keep all performances (filter by actual TIMESGIVEAWAY in individual fetches)."""
+    return performances or []
 
 
 def count_timesgiveaway_available(performances):
@@ -181,7 +181,7 @@ def main():
         else:
             raw = data.get("cache", []) if isinstance(data, dict) else []
             filtered = filter_timesgiveaway_performances(raw)
-            print(f"{slug} ({idx}/{total}) - fetched {len(raw)} performances, {len(filtered)} with TIMESGIVEAWAY")
+            print(f"{slug} ({idx}/{total}) - fetched {len(raw)} performances, checking all for TIMESGIVEAWAY")
 
             # Fetch individual performance details in parallel
             detailed = []
