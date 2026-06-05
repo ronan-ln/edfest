@@ -91,21 +91,20 @@ function PerformanceRow({ perf, eventId, hasCookie, onNeedCookie, onBasketSucces
     const payload = { event: eventId, performance: perf.id, ticket }
 
     try {
-      const res = await fetch('https://edfest.com/api/basket', {
+      const res = await fetch('/api/basket', {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
-          'Cookie': getCookie(),
+          'x-edfest-cookie': getCookie(),
         },
         body: JSON.stringify(payload),
-        credentials: 'include',
       })
       const data = await res.json()
       if (res.ok && data.success) {
         setBasketState('success')
         onBasketSuccess(`Added ${quantity} ticket${quantity !== 1 ? 's' : ''} for ${fmtDate(perf.datetime)}`)
       } else {
-        setError(data.message || data.error || `Error: ${res.status}`)
+        setError(data.message || data.error || `Error: ${res.status} - ${JSON.stringify(data)}`)
         setBasketState('error')
         setTimeout(() => setBasketState('idle'), 4000)
       }
