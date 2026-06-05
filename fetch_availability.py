@@ -6,6 +6,7 @@ import os
 import random
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 
 import requests
@@ -62,6 +63,21 @@ def fetch_performance_detail(session, slug, perf_id):
     resp = session.get(url, headers=HEADERS, timeout=30)
     resp.raise_for_status()
     return resp.json()
+
+
+def fetch_perf_with_logging(session, slug, perf):
+    """Fetch individual performance detail and log results."""
+    perf_id = perf.get("id")
+    datetime_str = perf.get("datetime")
+    try:
+        detail = fetch_performance_detail(session, slug, perf_id)
+        remaining = detail.get("prices", [{}])[0].get("concessions", [])
+        remaining = next((c.get("remainingLimitValue") for c in remaining if c.get("code") == "TIMESGIVEAWAY"), None)
+        print(f"  • {datetime_str} (id: {perf_id}) - slots: {remaining}")
+        return detail
+    except requests.RequestException as e:
+        print(f"  • {datetime_str} (id: {perf_id}) - ERROR: {e}", file=sys.stderr)
+        return perf
 
 
 TIMESGIVEAWAY_CODE = "TIMESGIVEAWAY"
@@ -165,19 +181,12 @@ def main():
             filtered = filter_timesgiveaway_performances(raw)
             print(f"{slug} ({idx}/{total}) - fetched {len(raw)} performances, {len(filtered)} with TIMESGIVEAWAY")
 
-            # Fetch individual performance details for each with TIMESGIVEAWAY
+            # Fetch individual performance details in parallel
             detailed = []
-            for perf in filtered:
-                try:
-                    detail = fetch_performance_detail(session, slug, perf.get("id"))
-                    remaining = detail.get("prices", [{}])[0].get("concessions", [])
-                    remaining = next((c.get("remainingLimitValue") for c in remaining if c.get("code") == "TIMESGIVEAWAY"), None)
-                    print(f"  • {perf.get('datetime')} (id: {perf.get('id')}) - slots: {remaining}")
-                    detailed.append(detail)
-                    time.sleep(random.uniform(0.2, 1.0))
-                except requests.RequestException as e:
-                    print(f"  • {perf.get('datetime')} (id: {perf.get('id')}) - ERROR: {e}", file=sys.stderr)
-                    detailed.append(perf)
+            with ThreadPoolExecutor(max_workers=4) as executor:
+                futures = {executor.submit(fetch_perf_with_logging, session, slug, perf): perf for perf in filtered}
+                for future in as_completed(futures):
+                    detailed.append(future.result())
 
             available = count_timesgiveaway_available(detailed)
             results[slug] = {
