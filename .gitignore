@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Crawler writes here locally — not committed (edfest-browser/data/ is the committed copy)
+data/availability.json
+
+# Next.js
+edfest-browser/.next/
+edfest-browser/node_modules/
+edfest-browser/.env.local
+
+# OS
+.DS_Store
