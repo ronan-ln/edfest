@@ -51,6 +51,30 @@ function fmtDateRange(first: string | null | undefined, last: string | null | un
   return `${a.d} ${MONTHS[a.m]} - ${b.d} ${MONTHS[b.m]}`
 }
 
+function fmtStartTime(dt: string | null | undefined): string | null {
+  if (!dt) return null
+  const date = new Date(dt.replace(' ', 'T'))
+  if (isNaN(date.getTime())) return null
+  return date.toLocaleTimeString('en-GB', {
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+function fmtDuration(duration: string | number | null | undefined): string | null {
+  if (duration == null) return null
+  const value = typeof duration === 'number' ? duration : Number.parseFloat(String(duration))
+  if (!Number.isFinite(value) || value <= 0) return null
+
+  const totalMinutes = Math.round(value)
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+
+  if (hours > 0 && minutes > 0) return `${hours}h ${minutes}m`
+  if (hours > 0) return `${hours}h`
+  return `${totalMinutes}m`
+}
+
 function countTimesPromo(perfs: Performance[] | null): number {
   if (!perfs) return 0
   let count = 0
@@ -76,6 +100,8 @@ export function EventCard({ event, cachedPerfs, onClick }: EventCardProps) {
   const snippet = stripHtml(event.short_description) || stripHtml(event.description)
   const ageRating = event.raw_data?.ageSuitabilityTitle ?? null
   const dateRange = fmtDateRange(event.first_performance_date, event.last_performance_date)
+  const startTime = fmtStartTime(event.first_performance_date)
+  const duration = fmtDuration(event.duration)
 
   return (
     <button
@@ -133,6 +159,21 @@ export function EventCard({ event, cachedPerfs, onClick }: EventCardProps) {
         </h3>
 
         <p className="text-xs text-gray-500">{venueName}{dateRange ? ` · ${dateRange}` : ''}</p>
+
+        {(startTime || duration) && (
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            {startTime && (
+              <span className="rounded-full border border-gray-700 bg-gray-900 px-2 py-0.5 text-gray-300">
+                Time {startTime}
+              </span>
+            )}
+            {duration && (
+              <span className="rounded-full border border-gray-700 bg-gray-900 px-2 py-0.5 text-gray-300">
+                Duration {duration}
+              </span>
+            )}
+          </div>
+        )}
 
         {snippet && (
           <p className="line-clamp-4 text-sm leading-relaxed text-gray-300">{snippet}</p>
