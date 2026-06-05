@@ -10,6 +10,10 @@ interface FilterBarProps {
   onPromoOnly: (value: boolean) => void
   totalCount: number
   visibleCount: number
+  hasCookie: boolean
+  firstName: string
+  basketCount: number | null
+  onAccountClick: () => void
 }
 
 export function FilterBar({
@@ -22,6 +26,10 @@ export function FilterBar({
   onPromoOnly,
   totalCount,
   visibleCount,
+  hasCookie,
+  firstName,
+  basketCount,
+  onAccountClick,
 }: FilterBarProps) {
   return (
     <div className="sticky top-0 z-20 border-b border-gray-800 bg-gray-950/90 backdrop-blur-md">
@@ -54,9 +62,23 @@ export function FilterBar({
           />
           Times promo only
         </label>
-        <span className="text-xs text-gray-500 whitespace-nowrap">
-          {visibleCount} / {totalCount}
-        </span>
+        <div className="flex flex-1 items-center justify-end gap-4">
+          <span className="text-xs text-gray-500 whitespace-nowrap">
+            {visibleCount} / {totalCount}
+          </span>
+          <button
+            type="button"
+            onClick={onAccountClick}
+            className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition ${hasCookie ? 'border-green-400/40 text-green-400 hover:bg-green-400/10' : 'border-gray-700 text-gray-400 hover:border-green-400 hover:text-green-400'}`}
+          >
+            <span className="text-base">{hasCookie ? '🛒' : '🔓'}</span>
+            <span>
+              {hasCookie
+                ? `${firstName ? firstName : 'Account'}${basketCount != null ? ` · ${basketCount}` : ''}`
+                : 'Connect'}
+            </span>
+          </button>
+        </div>
       </div>
     </div>
   )

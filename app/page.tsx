@@ -139,22 +139,11 @@ export default function Home() {
   return (
     <div className="min-h-screen flex-1 bg-gray-950 text-gray-100">
       <header className="border-b border-gray-800 bg-gray-950">
-        <div className="mx-auto flex max-w-7xl items-baseline justify-between gap-4 px-4 py-6">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-100">EdFest browser</h1>
-            <p className="text-sm text-gray-400">
-              {events.length.toLocaleString()} shows · click any card to check Times Giveaway availability
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => setShowCookieSetup(true)}
-            className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition ${hasCookie ? 'border-green-400/40 text-green-400 hover:bg-green-400/10' : 'border-gray-700 text-gray-400 hover:border-green-400 hover:text-green-400'}`}
-          >
-            {hasCookie
-              ? `✓ ${firstName ? `Hi, ${firstName}` : 'Connected'}${basketCount != null ? ` · ${basketCount} ticket${basketCount !== 1 ? 's' : ''}` : ''}`
-              : '⚙ Connect to edfest.com'}
-          </button>
+        <div className="mx-auto max-w-7xl px-4 py-6">
+          <h1 className="text-2xl font-bold text-gray-100">EdFest browser</h1>
+          <p className="text-sm text-gray-400">
+            {events.length.toLocaleString()} shows · click any card to check Times Giveaway availability
+          </p>
         </div>
       </header>
 
@@ -177,6 +166,10 @@ export default function Home() {
         }}
         totalCount={events.length}
         visibleCount={filtered.length}
+        hasCookie={hasCookie}
+        firstName={firstName}
+        basketCount={basketCount}
+        onAccountClick={() => setShowCookieSetup(true)}
       />
 
       <main className="mx-auto max-w-7xl px-4 py-6">
