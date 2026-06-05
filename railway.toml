@@ -6,7 +6,7 @@ buildCommand = "npm install && npm run build"
 nixPkgs = ["nodejs_22"]
 
 [deploy]
-startCommand = "npm run start"
+startCommand = "node scripts/seed.mjs && npm run start"
 healthcheckPath = "/"
 healthcheckTimeout = 30
 restartPolicyType = "on_failure"
