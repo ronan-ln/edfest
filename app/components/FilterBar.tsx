@@ -1,5 +1,7 @@
 'use client'
 
+import Link from 'next/link'
+
 interface FilterBarProps {
   search: string
   onSearch: (value: string) => void
@@ -66,6 +68,15 @@ export function FilterBar({
           <span className="text-xs text-gray-500 whitespace-nowrap">
             {visibleCount} / {totalCount}
           </span>
+          {hasCookie && (
+            <Link
+              href="/purchases"
+              className="flex items-center gap-1.5 rounded-lg border border-gray-700 px-3 py-2 text-sm font-medium text-gray-300 transition hover:border-green-400 hover:text-green-400"
+            >
+              <span className="text-base">🎟️</span>
+              <span>My Tickets</span>
+            </Link>
+          )}
           <button
             type="button"
             onClick={onAccountClick}
