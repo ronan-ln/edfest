@@ -164,7 +164,7 @@ function PerformanceRow({ perf, eventId, hasCookie, onNeedCookie, onBasketSucces
           </span>
 
           <a
-            href={`https://edfest.com/whats-on/${slug}/book?date=${encodeURIComponent(currentPerf.datetime)}`}
+            href={`https://edfest.com/whats-on/${slug}/book?date=${encodeURIComponent(currentPerf.datetime.replace(' ', 'T'))}`}
             target="_blank"
             rel="noopener noreferrer"
             className="rounded-lg border border-gray-700 px-3 py-1 text-xs font-semibold text-gray-300 hover:border-gray-500 hover:text-gray-100"
