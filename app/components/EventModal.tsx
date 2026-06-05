@@ -35,6 +35,14 @@ function timesConcession(perf: Performance) {
   return null
 }
 
+function hasTimesAvailability(perf: Performance): boolean {
+  const c = timesConcession(perf)
+  if (!c) return false
+  const promoAvailable = c.remainingLimitValue == null || c.remainingLimitValue > 0
+  const notSoldOut = perf.is_sold_out !== true
+  return promoAvailable && notSoldOut
+}
+
 function heroImageUrl(thumb: string | null): string | null {
   if (!thumb) return null
   return `https://edfest.pazaz.studio/assets/${thumb}?width=800&fit=cover&quality=80&height=400`
@@ -91,6 +99,9 @@ function PerformanceRow({ perf, eventId, hasCookie, onNeedCookie, onBasketSucces
   const c = timesConcession(currentPerf)!
   const promoAvailable = c.remainingLimitValue == null || c.remainingLimitValue > 0
   const available = promoAvailable && !currentPerf.is_sold_out
+  const seatsText = typeof currentPerf.availability === 'number'
+    ? `${currentPerf.availability} seats available`
+    : 'Availability refreshed'
 
   const promoLabel = perf.is_sold_out
     ? 'Sold out'
@@ -154,7 +165,7 @@ function PerformanceRow({ perf, eventId, hasCookie, onNeedCookie, onBasketSucces
               Checking availability...
             </span>
           ) : (
-            `${currentPerf.availability} seats available`
+            seatsText
           )}
         </p>
       </div>
@@ -287,12 +298,7 @@ export function EventModal({ event, onClose, onNeedCookie, onPerformanceUpdated 
   }
 
   const timesPerfs = (perfs ?? []).filter(p => timesConcession(p) !== null)
-  const availableTimesPerfs = timesPerfs.filter((perf) => {
-    const c = timesConcession(perf)
-    if (!c) return false
-    const promoAvailable = c.remainingLimitValue == null || c.remainingLimitValue > 0
-    return promoAvailable && !perf.is_sold_out && perf.availability > 0
-  })
+  const availableTimesPerfs = timesPerfs.filter(hasTimesAvailability)
   const bookHref = `https://edfest.com/whats-on/${event.slug}/book`
   const checkoutHref = 'https://edfest.com/checkout'
   const hero = heroImageUrl(event.image_thumbnail)
