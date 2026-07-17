@@ -6,6 +6,20 @@ import {
   upsertTicket,
 } from '../../../lib/planner-db'
 
+const EDFEST_USER_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:151.0) Gecko/20100101 Firefox/151.0',
+  'Accept': '*/*',
+  'Referer': 'https://edfest.com/account',
+  'Origin': 'https://edfest.com',
+}
+
+const EDFEST_PURCHASE_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:151.0) Gecko/20100101 Firefox/151.0',
+  'Accept': '*/*',
+  'Referer': 'https://edfest.com/account/purchases',
+  'Origin': 'https://edfest.com',
+}
+
 interface TicketItem {
   ticketId?: number | string
   barcode?: string
@@ -52,17 +66,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'no cookie' }, { status: 401 })
   }
 
-  const origin = req.nextUrl.origin
   const sourceKey = sourceKeyFromCookie(cookie)
 
   try {
     const [userRes, purchasesRes] = await Promise.all([
-      fetch(`${origin}/api/user`, {
-        headers: { 'x-edfest-cookie': cookie },
+      fetch('https://edfest.com/api/user/me', {
+        headers: { ...EDFEST_USER_HEADERS, Cookie: cookie },
         cache: 'no-store',
       }),
-      fetch(`${origin}/api/purchases`, {
-        headers: { 'x-edfest-cookie': cookie },
+      fetch('https://edfest.com/api/user/purchases', {
+        headers: { ...EDFEST_PURCHASE_HEADERS, Cookie: cookie },
         cache: 'no-store',
       }),
     ])
@@ -75,10 +88,33 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `failed purchases fetch: ${purchasesRes.status}` }, { status: 502 })
     }
 
-    const userData = await userRes.json() as { firstname?: string }
-    const purchasesData = await purchasesRes.json() as { purchases?: Purchase[] }
+    const userData = await userRes.json() as {
+      firstname?: string
+      first_name?: string
+      firstName?: string
+      user?: {
+        firstname?: string
+        first_name?: string
+        firstName?: string
+      }
+    }
+    const purchasesText = await purchasesRes.text()
+    let purchasesData: { purchases?: Purchase[] }
+    try {
+      purchasesData = purchasesText ? JSON.parse(purchasesText) as { purchases?: Purchase[] } : {}
+    } catch {
+      return NextResponse.json({ error: 'invalid purchases response from edfest' }, { status: 502 })
+    }
 
-    const firstName = (userData.firstname || 'Unknown').trim() || 'Unknown'
+    const resolvedFirstName =
+      userData.firstname ??
+      userData.first_name ??
+      userData.firstName ??
+      userData.user?.firstname ??
+      userData.user?.first_name ??
+      userData.user?.firstName ??
+      ''
+    const firstName = resolvedFirstName.trim() || 'Unknown'
     const source = upsertSourceAccount({ sourceKey, firstName })
 
     const purchases = purchasesData.purchases || []
