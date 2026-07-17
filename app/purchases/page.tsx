@@ -1,14 +1,14 @@
 'use client'
 
 import Link from 'next/link'
-import { useRouter, useSearchParams } from 'next/navigation'
-import { Suspense, startTransition, useEffect, useMemo, useState } from 'react'
-import { getCookie } from '../components/CookieSetup'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { Suspense, useEffect, useMemo, useState } from 'react'
 
 const DAY_START_MINUTES = 10 * 60
 const MIN_EVENT_MINUTES = 30
 const DEFAULT_EVENT_MINUTES = 60
 const PIXELS_PER_MINUTE = 1.35
+const UNASSIGNED_FILTER = '__unassigned__'
 
 type ViewMode = 'list' | 'diary'
 
@@ -16,23 +16,6 @@ interface TicketItem {
   ticketId: number
   barcode: string
   barcodeURL: string
-}
-
-interface PurchasePerformance {
-  performanceId: string
-  event: string
-  eventId: string
-  venue: string
-  subvenue: string
-  date: string
-  tickets: {
-    ticketItems: TicketItem[]
-  }[]
-}
-
-interface Purchase {
-  orderid: string
-  performances: PurchasePerformance[]
 }
 
 interface OfferCategory {
@@ -50,6 +33,7 @@ interface OfferMeta {
 
 interface FlatEvent {
   key: string
+  performanceId: string
   event: string
   eventId: string
   venue: string
@@ -69,6 +53,47 @@ interface FlatEvent {
 interface PositionedEvent extends FlatEvent {
   column: number
   columns: number
+}
+
+interface PlannerAssignee {
+  id: number
+  name: string
+}
+
+interface PlannerTicket {
+  id: number
+  assigneeName: string | null
+  barcode: string | null
+  barcodeUrl: string | null
+  sourceFirstName: string
+  sourceColor: string
+}
+
+interface PlannerPerformance {
+  performanceId: string
+  eventName: string
+  eventSlug: string | null
+  venue: string | null
+  subvenue: string | null
+  datetime: string
+  tickets: PlannerTicket[]
+}
+
+interface AssignmentCount {
+  name: string
+  count: number
+}
+
+interface OwnerCount {
+  name: string
+  count: number
+  color: string
+}
+
+interface OwnerStyle {
+  name: string
+  background: string
+  border: string
 }
 
 function normalizeName(name: string): string {
@@ -157,6 +182,15 @@ function getEventColor(seed: string): { background: string; border: string } {
   }
 }
 
+function ownerStyleFromColor(ownerName: string, color: string): OwnerStyle {
+  // sourceColor already comes from planner (hsla), keep it as the visual base.
+  return {
+    name: ownerName,
+    background: color,
+    border: color,
+  }
+}
+
 function layoutDayEvents(events: FlatEvent[]): PositionedEvent[] {
   const positioned: PositionedEvent[] = []
   let cluster: FlatEvent[] = []
@@ -205,6 +239,23 @@ function layoutDayEvents(events: FlatEvent[]): PositionedEvent[] {
 
 function getViewMode(view: string | null): ViewMode {
   return view === 'diary' ? 'diary' : 'list'
+}
+
+function parseAssigneeParam(raw: string): string[] {
+  const value = raw.trim()
+  if (!value) return []
+
+  const unique: string[] = []
+  const seen = new Set<string>()
+  for (const part of value.split(',')) {
+    const name = part.trim()
+    if (!name) continue
+    const normalized = name.toLowerCase()
+    if (seen.has(normalized)) continue
+    seen.add(normalized)
+    unique.push(name)
+  }
+  return unique
 }
 
 function TicketAccordion({
@@ -332,7 +383,279 @@ function DiaryModal({
   )
 }
 
+function TicketAssignModal({
+  event,
+  plannerTickets,
+  assigneeOptions,
+  draftByTicket,
+  busy,
+  error,
+  onTicketChange,
+  onSave,
+  onClearAll,
+  onClose,
+}: {
+  event: FlatEvent
+  plannerTickets: PlannerTicket[]
+  assigneeOptions: PlannerAssignee[]
+  draftByTicket: Record<number, string>
+  busy: boolean
+  error: string | null
+  onTicketChange: (ticketId: number, value: string) => void
+  onSave: () => void
+  onClearAll: () => void
+  onClose: () => void
+}) {
+  const assignableCount = plannerTickets.length
+  const assignedCount = plannerTickets.filter((ticket) => (draftByTicket[ticket.id] || '').trim()).length
+  const canSave = assignableCount > 0 && !busy
+  const canClear = assignableCount > 0 && !busy
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="w-full max-w-lg rounded-2xl border border-gray-800 bg-gray-950 p-5 shadow-2xl"
+        onClick={(eventClick) => eventClick.stopPropagation()}
+      >
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Assign tickets</p>
+            <h3 className="mt-1 text-lg font-semibold text-white">{event.event}</h3>
+            <p className="mt-1 text-sm text-gray-400">
+              {formatDateTime(event.date).date} at {formatDateTime(event.date).time} · {event.venue}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full border border-gray-700 px-3 py-1 text-xs text-gray-300 hover:border-gray-500 hover:text-white"
+          >
+            Close
+          </button>
+        </div>
+
+        <div className="rounded-xl border border-gray-800 bg-gray-900 p-3">
+          <p className="text-sm text-gray-300">
+            {assignableCount > 0
+              ? `${assignableCount} planner ticket${assignableCount !== 1 ? 's' : ''} available for assignment.`
+              : 'This performance is not imported into the scheduler yet. Use Import shows on the scheduler page first.'}
+          </p>
+          <p className="mt-1 text-xs text-gray-500">
+            {assignedCount > 0 ? `${assignedCount} ticket${assignedCount !== 1 ? 's are' : ' is'} assigned in this draft.` : 'No tickets assigned in this draft.'}
+          </p>
+        </div>
+
+        <div className="mt-4 space-y-3">
+          <label className="text-sm text-gray-300">Assign each ticket</label>
+          <datalist id="assignment-user-options">
+            {assigneeOptions.map((assignee) => (
+              <option key={assignee.id} value={assignee.name} />
+            ))}
+          </datalist>
+
+          {plannerTickets.map((ticket, index) => (
+            <div key={ticket.id} className="rounded-lg border border-gray-800 bg-gray-900 p-3">
+              <p className="mb-2 text-xs uppercase tracking-[0.15em] text-gray-500">Ticket {index + 1}</p>
+              <input
+                value={draftByTicket[ticket.id] || ''}
+                onChange={(e) => onTicketChange(ticket.id, e.target.value)}
+                list="assignment-user-options"
+                placeholder="Select or type a user (empty = unassigned)"
+                className="w-full rounded-lg border border-gray-700 bg-gray-950 px-3 py-2 text-sm text-gray-100 focus:border-green-400 focus:outline-none"
+              />
+            </div>
+          ))}
+        </div>
+
+        {error && (
+          <div className="mt-3 rounded-lg border border-red-900/50 bg-red-950/40 px-3 py-2 text-sm text-red-300">
+            {error}
+          </div>
+        )}
+
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={onSave}
+            disabled={!canSave}
+            className="rounded-lg bg-green-400 px-4 py-2 text-sm font-semibold text-gray-950 hover:bg-green-300 disabled:opacity-50"
+          >
+            {busy ? 'Saving...' : 'Save assignments'}
+          </button>
+          <button
+            type="button"
+            onClick={onClearAll}
+            disabled={!canClear}
+            className="rounded-lg border border-gray-700 bg-gray-900 px-4 py-2 text-sm text-gray-200 hover:border-gray-500 disabled:opacity-50"
+          >
+            Clear all
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function AssignedQrModal({
+  event,
+  assigneeName,
+  tickets,
+  onClose,
+}: {
+  event: FlatEvent
+  assigneeName: string
+  tickets: PlannerTicket[]
+  onClose: () => void
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-gray-800 bg-gray-950 p-5 shadow-2xl"
+        onClick={(eventClick) => eventClick.stopPropagation()}
+      >
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Assigned ticket QR codes</p>
+            <h3 className="mt-1 text-lg font-semibold text-white">{event.event}</h3>
+            <p className="mt-1 text-sm text-gray-400">
+              {assigneeName} · {tickets.length} ticket{tickets.length !== 1 ? 's' : ''}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full border border-gray-700 px-3 py-1 text-xs text-gray-300 hover:border-gray-500 hover:text-white"
+          >
+            Close
+          </button>
+        </div>
+
+        <div className="space-y-3">
+          {tickets.map((ticket, index) => (
+            <div key={ticket.id} className="overflow-hidden rounded-xl border border-gray-800 bg-gray-900">
+              <div className="border-b border-gray-800 px-4 py-2 text-sm text-gray-200">
+                Ticket {index + 1}
+              </div>
+              <div className="bg-white px-4 py-4 text-center">
+                {ticket.barcodeUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={ticket.barcodeUrl}
+                    alt={`Assigned barcode for ${assigneeName} ticket ${index + 1}`}
+                    className="mx-auto h-auto w-full max-w-[260px]"
+                  />
+                ) : (
+                  <p className="text-sm text-gray-500">No QR available for this ticket.</p>
+                )}
+                {ticket.barcode && <p className="mt-3 font-mono text-xs text-gray-500">{ticket.barcode}</p>}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ImportShowsModal({
+  cookie,
+  onCookieChange,
+  connected,
+  firstName,
+  showCount,
+  connectBusy,
+  busy,
+  error,
+  onConnect,
+  onImport,
+  onClose,
+}: {
+  cookie: string
+  onCookieChange: (value: string) => void
+  connected: boolean
+  firstName: string
+  showCount: number
+  connectBusy: boolean
+  busy: boolean
+  error: string | null
+  onConnect: () => void
+  onImport: () => void
+  onClose: () => void
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="w-full max-w-xl rounded-2xl border border-gray-800 bg-gray-950 p-5 shadow-2xl"
+        onClick={(eventClick) => eventClick.stopPropagation()}
+      >
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Import shows</p>
+            <h3 className="mt-1 text-lg font-semibold text-white">Load shows from edfest account</h3>
+            <p className="mt-1 text-sm text-gray-400">
+              Paste a cookie and import. Imported shows/tickets are saved in the backend scheduler database.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full border border-gray-700 px-3 py-1 text-xs text-gray-300 hover:border-gray-500 hover:text-white"
+          >
+            Close
+          </button>
+        </div>
+
+        {!connected && (
+          <>
+            <label className="mb-2 block text-sm text-gray-300">edfest cookie</label>
+            <textarea
+              value={cookie}
+              onChange={(e) => onCookieChange(e.target.value)}
+              placeholder="Paste full Cookie header value"
+              className="h-28 w-full resize-none rounded-lg border border-gray-700 bg-gray-900 p-3 font-mono text-xs text-gray-100 focus:border-green-400 focus:outline-none"
+            />
+          </>
+        )}
+
+        {connected && (
+          <div className="rounded-lg border border-green-900/50 bg-green-950/30 px-3 py-2 text-sm text-green-300">
+            Connected as {firstName || 'Unknown'} · {showCount} future show{showCount !== 1 ? 's' : ''} found
+          </div>
+        )}
+
+        {error && (
+          <div className="mt-3 rounded-lg border border-red-900/50 bg-red-950/30 px-3 py-2 text-sm text-red-300">
+            {error}
+          </div>
+        )}
+
+        <div className="mt-4 flex items-center gap-2">
+          {!connected && (
+            <button
+              type="button"
+              onClick={onConnect}
+              disabled={!cookie.trim() || connectBusy}
+              className="rounded-lg border border-gray-700 bg-gray-900 px-4 py-2 text-sm font-semibold text-gray-100 hover:border-green-400 hover:text-green-300 disabled:opacity-50"
+            >
+              {connectBusy ? 'Connecting...' : 'Connect'}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onImport}
+            disabled={!connected || busy}
+            className="rounded-lg bg-green-400 px-4 py-2 text-sm font-semibold text-gray-950 hover:bg-green-300 disabled:opacity-50"
+          >
+            {busy ? 'Importing...' : 'Import and save'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function PurchasesPageContent() {
+  const pathname = usePathname()
   const router = useRouter()
   const searchParams = useSearchParams()
   const [events, setEvents] = useState<FlatEvent[]>([])
@@ -341,42 +664,208 @@ function PurchasesPageContent() {
   const [selectedEvent, setSelectedEvent] = useState<FlatEvent | null>(null)
   const [expandedEventKey, setExpandedEventKey] = useState<string | null>(null)
   const [expandedTickets, setExpandedTickets] = useState<Record<string, boolean>>({})
+  const [plannerAssignees, setPlannerAssignees] = useState<PlannerAssignee[]>([])
+  const [plannerByPerformance, setPlannerByPerformance] = useState<Record<string, PlannerPerformance>>({})
+  const [assignTarget, setAssignTarget] = useState<FlatEvent | null>(null)
+  const [assignDraft, setAssignDraft] = useState<Record<number, string>>({})
+  const [assignBusy, setAssignBusy] = useState(false)
+  const [assignError, setAssignError] = useState<string | null>(null)
+  const [qrTarget, setQrTarget] = useState<{ event: FlatEvent; assigneeName: string } | null>(null)
+  const [copiedAssigneeName, setCopiedAssigneeName] = useState<string | null>(null)
+  const [showImportModal, setShowImportModal] = useState(false)
+  const [importCookie, setImportCookie] = useState('')
+  const [importConnected, setImportConnected] = useState(false)
+  const [importConnectBusy, setImportConnectBusy] = useState(false)
+  const [importFirstName, setImportFirstName] = useState('')
+  const [importShowCount, setImportShowCount] = useState(0)
+  const [importBusy, setImportBusy] = useState(false)
+  const [importError, setImportError] = useState<string | null>(null)
+  const assigneeParam = searchParams.get('assignee') || ''
+  const selectedAssignees = parseAssigneeParam(assigneeParam)
+  const selectedAssigneeSet = new Set(selectedAssignees.map((name) => name.toLowerCase()))
 
-  useEffect(() => {
-    const cookie = getCookie()
-    if (!cookie) {
-      startTransition(() => {
-        setError('No cookie configured. Go to the main page to set up your session.')
-        setLoading(false)
-      })
-      return
+  function getAssignmentCounts(performanceId: string): AssignmentCount[] {
+    const performance = plannerByPerformance[performanceId]
+    if (!performance) return []
+
+    const counts = new Map<string, number>()
+    for (const ticket of performance.tickets) {
+      if (!ticket.assigneeName) continue
+      counts.set(ticket.assigneeName, (counts.get(ticket.assigneeName) || 0) + 1)
     }
 
-    Promise.all([
-      fetch('/offers.json').then((response) =>
-        response.json() as Promise<
-          Array<{
-            name: string
-            description: string | null
-            short_description: string | null
-            duration: string | null
-            image_thumbnail: string | null
-            categories?: OfferCategory[]
-            event_type?: string | null
-            raw_data?: { ageSuitabilityTitle?: string | null } | null
-          }>
-        >
-      ),
-      fetch('/api/purchases', {
-        headers: { 'x-edfest-cookie': cookie },
-      }).then((response) => response.json() as Promise<{ error?: string; purchases?: Purchase[] }>),
+    return Array.from(counts.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((left, right) => left.name.localeCompare(right.name))
+  }
+
+  function getOwnerCounts(performanceId: string): OwnerCount[] {
+    const performance = plannerByPerformance[performanceId]
+    if (!performance) return []
+
+    const counts = new Map<string, OwnerCount>()
+    for (const ticket of performance.tickets) {
+      const current = counts.get(ticket.sourceFirstName)
+      if (current) {
+        current.count += 1
+      } else {
+        counts.set(ticket.sourceFirstName, {
+          name: ticket.sourceFirstName,
+          count: 1,
+          color: ticket.sourceColor,
+        })
+      }
+    }
+
+    return Array.from(counts.values()).sort((left, right) => left.name.localeCompare(right.name))
+  }
+
+  function getPrimaryOwnerStyle(performanceId: string, seed: string): OwnerStyle {
+    const owners = getOwnerCounts(performanceId)
+    if (owners.length === 0) {
+      const fallback = getEventColor(seed)
+      return {
+        name: 'Unknown',
+        background: fallback.background,
+        border: fallback.border,
+      }
+    }
+
+    const dominant = owners.reduce((best, current) => {
+      if (current.count > best.count) return current
+      return best
+    }, owners[0])
+
+    return ownerStyleFromColor(dominant.name, dominant.color)
+  }
+
+  function getAssignedTickets(performanceId: string, assigneeName: string): PlannerTicket[] {
+    const performance = plannerByPerformance[performanceId]
+    if (!performance) return []
+    const normalized = assigneeName.trim().toLowerCase()
+    return performance.tickets.filter(
+      (ticket) => (ticket.assigneeName || '').trim().toLowerCase() === normalized
+    )
+  }
+
+  function isAssigneeSelected(name: string): boolean {
+    if (selectedAssignees.length === 0) return false
+    const normalized = name.trim().toLowerCase()
+    return selectedAssignees.some((value) => value.trim().toLowerCase() === normalized)
+  }
+
+  function getUnassignedTicketCount(event: FlatEvent): number {
+    const performance = plannerByPerformance[event.performanceId]
+    if (!performance) return event.ticketCount
+    return performance.tickets.filter((ticket) => !(ticket.assigneeName || '').trim()).length
+  }
+
+  function updateAssigneeFilter(next: string[]) {
+    const params = new URLSearchParams(searchParams.toString())
+    if (next.length === 0) {
+      params.delete('assignee')
+    } else {
+      params.set('assignee', next.join(','))
+    }
+    const targetPath = pathname || '/purchases'
+    router.replace(`${targetPath}?${params.toString()}`, { scroll: false })
+  }
+
+  function toggleAssigneeFilter(name: string) {
+    const exists = selectedAssignees.some((value) => value.toLowerCase() === name.toLowerCase())
+    if (exists) {
+      updateAssigneeFilter(selectedAssignees.filter((value) => value.toLowerCase() !== name.toLowerCase()))
+      return
+    }
+    updateAssigneeFilter([...selectedAssignees, name])
+  }
+
+  function buildPersonalizedUrl(assigneeName: string): string {
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('assignee', assigneeName)
+    const targetPath = pathname || '/purchases'
+    const query = params.toString()
+    return `${window.location.origin}${targetPath}${query ? `?${query}` : ''}`
+  }
+
+  async function copyPersonalizedUrl(assigneeName: string) {
+    const url = buildPersonalizedUrl(assigneeName)
+    let copied = false
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url)
+        copied = true
+      }
+    } catch {
+      copied = false
+    }
+
+    if (!copied) {
+      const textArea = document.createElement('textarea')
+      textArea.value = url
+      textArea.setAttribute('readonly', '')
+      textArea.style.position = 'fixed'
+      textArea.style.top = '-1000px'
+      textArea.style.left = '-1000px'
+      document.body.appendChild(textArea)
+      textArea.select()
+      copied = document.execCommand('copy')
+      document.body.removeChild(textArea)
+    }
+
+    if (copied) {
+      setCopiedAssigneeName(assigneeName)
+      window.setTimeout(() => {
+        setCopiedAssigneeName((current) => (current === assigneeName ? null : current))
+      }, 1800)
+    } else {
+      setCopiedAssigneeName(null)
+    }
+  }
+
+  async function loadPlannerData() {
+    const [assigneesRes, performancesRes] = await Promise.all([
+      fetch('/api/planner/assignees', { cache: 'no-store' }),
+      fetch('/api/planner/performances', { cache: 'no-store' }),
     ])
-      .then(([offers, data]) => {
-        if (data.error) {
-          setError(data.error)
-          setLoading(false)
-          return
-        }
+
+    const assigneesData = await assigneesRes.json() as { assignees?: PlannerAssignee[] }
+    const performancesData = await performancesRes.json() as { performances?: PlannerPerformance[] }
+
+    setPlannerAssignees(assigneesData.assignees || [])
+    const index: Record<string, PlannerPerformance> = {}
+    for (const performance of performancesData.performances || []) {
+      index[performance.performanceId] = performance
+    }
+    setPlannerByPerformance(index)
+  }
+
+  async function loadSchedulerData() {
+    setLoading(true)
+    setError(null)
+    try {
+      const [offers, assigneesData, performancesData] = await Promise.all([
+        fetch('/offers.json').then((response) =>
+          response.json() as Promise<
+            Array<{
+              name: string
+              description: string | null
+              short_description: string | null
+              duration: string | null
+              image_thumbnail: string | null
+              categories?: OfferCategory[]
+              event_type?: string | null
+              raw_data?: { ageSuitabilityTitle?: string | null } | null
+            }>
+          >
+        ),
+        fetch('/api/planner/assignees', { cache: 'no-store' }).then((response) =>
+          response.json() as Promise<{ assignees?: PlannerAssignee[] }>
+        ),
+        fetch('/api/planner/performances', { cache: 'no-store' }).then((response) =>
+          response.json() as Promise<{ performances?: PlannerPerformance[] }>
+        ),
+      ])
 
         const offersMap = new Map<string, OfferMeta>()
         for (const offer of offers) {
@@ -396,51 +885,216 @@ function PurchasesPageContent() {
           })
         }
 
-        const purchases = data.purchases || []
-        const now = new Date()
+        const plannerPerformances = performancesData.performances || []
         const flat: FlatEvent[] = []
 
-        for (const purchase of purchases) {
-          for (const perf of purchase.performances || []) {
-            const startAt = parseDate(perf.date)
-            if (startAt < now) continue
+        for (const perf of plannerPerformances) {
+          const startAt = parseDate(perf.datetime)
+          const meta = offersMap.get(normalizeName(perf.eventName))
+          const durationMinutes = meta?.durationMinutes ?? DEFAULT_EVENT_MINUTES
+          const startMinutes = startAt.getHours() * 60 + startAt.getMinutes()
+          const ticketItems = (perf.tickets || []).map((ticket) => ({
+            ticketId: ticket.id,
+            barcode: ticket.barcode || `ticket-${ticket.id}`,
+            barcodeURL: ticket.barcodeUrl || '',
+          }))
 
-            const meta = offersMap.get(normalizeName(perf.event))
-            const durationMinutes = meta?.durationMinutes ?? DEFAULT_EVENT_MINUTES
-            const startMinutes = startAt.getHours() * 60 + startAt.getMinutes()
-            const ticketItems = (perf.tickets || []).flatMap((ticket) => ticket.ticketItems || [])
-
-            flat.push({
-              key: `${purchase.orderid}-${perf.performanceId}-${perf.date}`,
-              event: perf.event,
-              eventId: perf.eventId,
-              venue: perf.venue,
-              subvenue: perf.subvenue,
-              date: perf.date,
-              dayKey: formatDayKey(startAt),
-              startMinutes,
-              endMinutes: startMinutes + durationMinutes,
-              durationMinutes,
-              ticketItems,
-              ticketCount: ticketItems.length,
-              description: meta?.description ?? null,
-              imageThumbnail: meta?.imageThumbnail ?? null,
-              tags: meta?.tags ?? [],
-            })
-          }
+          flat.push({
+            key: `${perf.performanceId}-${perf.datetime}`,
+            performanceId: perf.performanceId,
+            event: perf.eventName,
+            eventId: perf.eventSlug || perf.performanceId,
+            venue: perf.venue || 'Unknown venue',
+            subvenue: perf.subvenue || '',
+            date: perf.datetime,
+            dayKey: formatDayKey(startAt),
+            startMinutes,
+            endMinutes: startMinutes + durationMinutes,
+            durationMinutes,
+            ticketItems,
+            ticketCount: ticketItems.length,
+            description: meta?.description ?? null,
+            imageThumbnail: meta?.imageThumbnail ?? null,
+            tags: meta?.tags ?? [],
+          })
         }
 
         flat.sort((left, right) => parseDate(left.date).getTime() - parseDate(right.date).getTime())
         setEvents(flat)
+        setPlannerAssignees(assigneesData.assignees || [])
+        const index: Record<string, PlannerPerformance> = {}
+        for (const performance of performancesData.performances || []) {
+          index[performance.performanceId] = performance
+        }
+        setPlannerByPerformance(index)
         setLoading(false)
-      })
-      .catch((err: Error) => {
-        setError(err.message || 'Failed to load purchases')
-        setLoading(false)
-      })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load scheduler data')
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    void Promise.resolve().then(() => loadSchedulerData())
   }, [])
 
-  const dayKeys = useMemo(() => Array.from(new Set(events.map((event) => event.dayKey))), [events])
+  async function importShows() {
+    if (!importConnected) {
+      setImportError('Connect first before importing.')
+      return
+    }
+
+    const cookie = importCookie.trim()
+    if (!cookie) {
+      setImportError('Cookie is required to import.')
+      return
+    }
+
+    setImportBusy(true)
+    setImportError(null)
+    try {
+      const res = await fetch('/api/planner/import', {
+        method: 'POST',
+        headers: {
+          'x-edfest-cookie': cookie,
+        },
+      })
+      const data = await res.json() as {
+        error?: string
+        importedTickets?: number
+        importedPerformances?: number
+        source?: { first_name?: string }
+      }
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Import failed')
+      }
+      await loadSchedulerData()
+      setShowImportModal(false)
+      setImportConnected(false)
+      setImportFirstName('')
+      setImportShowCount(0)
+      setImportError(null)
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : 'Import failed')
+    } finally {
+      setImportBusy(false)
+    }
+  }
+
+  async function connectImportSource() {
+    const cookie = importCookie.trim()
+    if (!cookie) {
+      setImportError('Cookie is required to connect.')
+      return
+    }
+
+    setImportConnectBusy(true)
+    setImportError(null)
+    try {
+      const [userRes, purchasesRes] = await Promise.all([
+        fetch('/api/user', {
+          headers: { 'x-edfest-cookie': cookie },
+          cache: 'no-store',
+        }),
+        fetch('/api/purchases', {
+          headers: { 'x-edfest-cookie': cookie },
+          cache: 'no-store',
+        }),
+      ])
+
+      const userData = await userRes.json() as {
+        firstname?: string
+        first_name?: string
+        firstName?: string
+        user?: {
+          firstname?: string
+          first_name?: string
+          firstName?: string
+        }
+      }
+      const purchasesData = await purchasesRes.json() as {
+        purchases?: Array<{
+          performances?: Array<{
+            event?: string
+            date?: string
+          }>
+        }>
+      }
+
+      if (!userRes.ok || !purchasesRes.ok) {
+        throw new Error('Cookie rejected. Please check and try again.')
+      }
+
+      const resolvedFirstName =
+        userData.firstname ??
+        userData.first_name ??
+        userData.firstName ??
+        userData.user?.firstname ??
+        userData.user?.first_name ??
+        userData.user?.firstName ??
+        ''
+      const firstName = resolvedFirstName.trim() || 'Unknown'
+      const now = Date.now()
+      const futureShowNames = new Set<string>()
+
+      for (const purchase of purchasesData.purchases || []) {
+        for (const performance of purchase.performances || []) {
+          const eventName = (performance.event || '').trim()
+          const dateRaw = (performance.date || '').trim()
+          if (!eventName || !dateRaw) continue
+          const parsed = new Date(dateRaw.replace(' ', 'T'))
+          if (Number.isNaN(parsed.getTime())) continue
+          if (parsed.getTime() <= now) continue
+          futureShowNames.add(eventName.toLowerCase())
+        }
+      }
+
+      setImportFirstName(firstName)
+      setImportShowCount(futureShowNames.size)
+      setImportConnected(true)
+    } catch (err) {
+      setImportConnected(false)
+      setImportFirstName('')
+      setImportShowCount(0)
+      setImportError(err instanceof Error ? err.message : 'Failed to connect')
+    } finally {
+      setImportConnectBusy(false)
+    }
+  }
+
+  const assigneeFilterOptions = useMemo(() => {
+    const names = new Set<string>()
+    for (const performance of Object.values(plannerByPerformance)) {
+      for (const ticket of performance.tickets) {
+        if (ticket.assigneeName) names.add(ticket.assigneeName)
+      }
+    }
+    return Array.from(names).sort((left, right) => left.localeCompare(right))
+  }, [plannerByPerformance])
+
+  const hasUnassignedTickets = useMemo(
+    () =>
+      Object.values(plannerByPerformance).some((performance) =>
+        performance.tickets.some((ticket) => !(ticket.assigneeName || '').trim())
+      ),
+    [plannerByPerformance]
+  )
+
+  const visibleEvents = selectedAssigneeSet.size === 0
+    ? events
+    : events.filter((event) => {
+      const performance = plannerByPerformance[event.performanceId]
+      if (!performance) return false
+      const includeUnassigned = selectedAssigneeSet.has(UNASSIGNED_FILTER)
+      return performance.tickets.some((ticket) => {
+        const name = (ticket.assigneeName || '').trim().toLowerCase()
+        if (!name) return includeUnassigned
+        return selectedAssigneeSet.has(name)
+      })
+    })
+
+  const dayKeys = useMemo(() => Array.from(new Set(visibleEvents.map((event) => event.dayKey))), [visibleEvents])
   const currentView = getViewMode(searchParams.get('view'))
 
   useEffect(() => {
@@ -461,13 +1115,14 @@ function PurchasesPageContent() {
     }
 
     if (changed) {
-      router.replace(`/purchases?${params.toString()}`, { scroll: false })
+      const targetPath = pathname || '/purchases'
+      router.replace(`${targetPath}?${params.toString()}`, { scroll: false })
     }
-  }, [currentView, dayKeys, router, searchParams])
+  }, [currentView, dayKeys, pathname, router, searchParams])
 
   const eventsByDay = useMemo(() => {
     const grouped = new Map<string, FlatEvent[]>()
-    for (const event of events) {
+    for (const event of visibleEvents) {
       const current = grouped.get(event.dayKey)
       if (current) {
         current.push(event)
@@ -476,12 +1131,12 @@ function PurchasesPageContent() {
       }
     }
     return grouped
-  }, [events])
+  }, [visibleEvents])
 
   const requestedDay = searchParams.get('day')
   const currentDay = requestedDay && dayKeys.includes(requestedDay) ? requestedDay : dayKeys[0] ?? null
   const currentDayIndex = currentDay ? dayKeys.indexOf(currentDay) : -1
-  const sortedEvents = useMemo(() => [...events], [events])
+  const sortedEvents = useMemo(() => [...visibleEvents], [visibleEvents])
   const dayEvents = useMemo(() => {
     if (!currentDay) return []
     return eventsByDay.get(currentDay) ?? []
@@ -509,7 +1164,8 @@ function PurchasesPageContent() {
     for (const [key, value] of Object.entries(updates)) {
       params.set(key, value)
     }
-    router.push(`/purchases?${params.toString()}`, { scroll: false })
+    const targetPath = pathname || '/purchases'
+    router.push(`${targetPath}?${params.toString()}`, { scroll: false })
   }
 
   function navigateDay(offset: number) {
@@ -526,6 +1182,125 @@ function PurchasesPageContent() {
     }))
   }
 
+  async function assignTargetTickets() {
+    if (!assignTarget) return
+    const plannerPerf = plannerByPerformance[assignTarget.performanceId]
+    const tickets = plannerPerf?.tickets || []
+    if (tickets.length === 0) {
+      setAssignError('This performance has no imported planner tickets yet.')
+      return
+    }
+    const groups = new Map<string, number[]>()
+    const unassignIds: number[] = []
+
+    for (const ticket of tickets) {
+      const nextName = (assignDraft[ticket.id] || '').trim()
+      const currentName = (ticket.assigneeName || '').trim()
+
+      if (!nextName && !currentName) continue
+      if (!nextName && currentName) {
+        unassignIds.push(ticket.id)
+        continue
+      }
+      if (nextName && currentName && nextName.toLowerCase() === currentName.toLowerCase()) {
+        continue
+      }
+
+      const list = groups.get(nextName) || []
+      list.push(ticket.id)
+      groups.set(nextName, list)
+    }
+
+    if (groups.size === 0 && unassignIds.length === 0) {
+      setAssignTarget(null)
+      setAssignDraft({})
+      return
+    }
+
+    setAssignBusy(true)
+    setAssignError(null)
+    try {
+      const calls: Promise<void>[] = []
+
+      if (unassignIds.length > 0) {
+        calls.push(
+          fetch('/api/planner/assignments', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              ticketIds: unassignIds,
+              unassign: true,
+            }),
+          }).then(async (res) => {
+            const data = await res.json() as { error?: string }
+            if (!res.ok) throw new Error(data.error || 'failed to unassign tickets')
+          })
+        )
+      }
+
+      for (const [name, ticketIds] of groups.entries()) {
+        calls.push(
+          fetch('/api/planner/assignments', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              ticketIds,
+              assigneeName: name,
+            }),
+          }).then(async (res) => {
+            const data = await res.json() as { error?: string }
+            if (!res.ok) throw new Error(data.error || 'failed to assign tickets')
+          })
+        )
+      }
+
+      await Promise.all(calls)
+
+      await loadPlannerData()
+      setAssignTarget(null)
+      setAssignDraft({})
+    } catch (err) {
+      setAssignError(err instanceof Error ? err.message : 'failed to assign tickets')
+    } finally {
+      setAssignBusy(false)
+    }
+  }
+
+  async function clearTargetAssignments() {
+    if (!assignTarget) return
+    const plannerPerf = plannerByPerformance[assignTarget.performanceId]
+    const ticketIds = plannerPerf?.tickets.map((ticket) => ticket.id) || []
+    if (ticketIds.length === 0) {
+      setAssignError('This performance has no imported planner tickets yet.')
+      return
+    }
+
+    setAssignBusy(true)
+    setAssignError(null)
+    try {
+      const res = await fetch('/api/planner/assignments', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          ticketIds,
+          unassign: true,
+        }),
+      })
+      const data = await res.json() as { error?: string }
+      if (!res.ok) {
+        throw new Error(data.error || 'failed to clear assignments')
+      }
+
+      await loadPlannerData()
+      setAssignTarget(null)
+      setAssignDraft({})
+    } catch (err) {
+      setAssignError(err instanceof Error ? err.message : 'failed to clear assignments')
+    } finally {
+      setAssignBusy(false)
+    }
+  }
+
   return (
     <div className="min-h-screen flex-1 bg-gray-950 text-gray-100">
       <header className="border-b border-gray-800 bg-gray-950">
@@ -534,15 +1309,22 @@ function PurchasesPageContent() {
             <div>
               <h1 className="text-2xl font-bold text-gray-100">My Tickets</h1>
               <p className="text-sm text-gray-400">
-                {events.length} upcoming performance{events.length !== 1 ? 's' : ''} across {dayKeys.length} day{dayKeys.length !== 1 ? 's' : ''}
+                {visibleEvents.length} visible performance{visibleEvents.length !== 1 ? 's' : ''} across {dayKeys.length} day{dayKeys.length !== 1 ? 's' : ''}
               </p>
             </div>
-            <Link
-              href="/"
+            <button
+              type="button"
+              onClick={() => {
+                setShowImportModal(true)
+                setImportConnected(false)
+                setImportFirstName('')
+                setImportShowCount(0)
+                setImportError(null)
+              }}
               className="rounded-lg border border-gray-700 bg-gray-900 px-4 py-2 text-sm font-medium text-gray-200 hover:border-green-400 hover:text-green-400"
             >
-              ← Browse shows
-            </Link>
+              Import shows
+            </button>
           </div>
         </div>
       </header>
@@ -561,14 +1343,61 @@ function PurchasesPageContent() {
           </div>
         )}
 
-        {!loading && !error && events.length === 0 && (
+        {!loading && !error && visibleEvents.length === 0 && (
           <div className="rounded-lg border border-gray-800 bg-gray-900 p-8 text-center text-sm text-gray-400">
-            No upcoming events found.
+            No events match your selected assignee filters.
           </div>
         )}
 
-        {!loading && !error && events.length > 0 && currentDay && (
+        {!loading && !error && visibleEvents.length > 0 && currentDay && (
           <div className="space-y-6">
+            {(assigneeFilterOptions.length > 0 || hasUnassignedTickets) && (
+              <div className="rounded-2xl border border-gray-800 bg-gray-900/80 p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs uppercase tracking-[0.18em] text-gray-500">Assignee filters</span>
+                  <button
+                    type="button"
+                    onClick={() => updateAssigneeFilter([])}
+                    className={`rounded-full px-3 py-1 text-xs font-medium ${selectedAssignees.length === 0 ? 'bg-green-400 text-gray-950' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'}`}
+                  >
+                    All
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => toggleAssigneeFilter(UNASSIGNED_FILTER)}
+                    className={`rounded-full px-3 py-1 text-xs font-medium ${selectedAssigneeSet.has(UNASSIGNED_FILTER) ? 'bg-green-400 text-gray-950' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'}`}
+                  >
+                    Unassigned
+                  </button>
+                  {assigneeFilterOptions.map((name) => {
+                    const active = selectedAssignees.some((value) => value.toLowerCase() === name.toLowerCase())
+                    return (
+                      <div key={name} className="inline-flex items-center overflow-hidden rounded-full">
+                        <button
+                          type="button"
+                          onClick={() => toggleAssigneeFilter(name)}
+                          className={`px-3 py-1 text-xs font-medium ${active ? 'bg-green-400 text-gray-950' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'}`}
+                        >
+                          {name}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void copyPersonalizedUrl(name)}
+                          className={`px-2 py-1 text-xs font-semibold ${copiedAssigneeName === name ? 'bg-green-300 text-gray-950' : active ? 'bg-green-300/90 text-gray-900 hover:bg-green-200' : 'bg-gray-700 text-gray-200 hover:bg-gray-600'}`}
+                          title={copiedAssigneeName === name ? `Copied link for ${name}` : `Copy assigned-shows link for ${name}`}
+                        >
+                          <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M10 14a5 5 0 0 1 0-7l2-2a5 5 0 0 1 7 7l-1.5 1.5" />
+                            <path d="M14 10a5 5 0 0 1 0 7l-2 2a5 5 0 0 1-7-7L6.5 10.5" />
+                          </svg>
+                        </button>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
             <div className="flex flex-wrap gap-2 rounded-2xl border border-gray-800 bg-gray-900/80 p-3">
               {dayKeys.map((dayKey) => {
                 const active = dayKey === currentDay
@@ -592,7 +1421,7 @@ function PurchasesPageContent() {
                 <p className="mt-1 text-sm text-gray-400">
                   {currentView === 'diary'
                     ? 'Timeline starts at 10:00 and runs until the last performance ends.'
-                    : 'Click a card to expand the show details, description, tags, and individual ticket barcodes.'}
+                    : 'Click a card to expand details. Click the tickets bubble to assign users.'}
                 </p>
               </div>
               <div className="flex flex-col items-stretch gap-3 sm:items-end">
@@ -638,13 +1467,23 @@ function PurchasesPageContent() {
                   const when = formatDateTime(event.date)
                   const image = getImageUrl(event.imageThumbnail)
                   const isExpanded = expandedEventKey === event.key
+                  const assignmentCounts = getAssignmentCounts(event.performanceId)
+                  const unassignedTicketCount = getUnassignedTicketCount(event)
+                  const ownerStyle = getPrimaryOwnerStyle(event.performanceId, event.eventId || event.event)
 
                   return (
-                    <div key={event.key} className="overflow-hidden rounded-2xl border border-gray-800 bg-gray-900">
+                    <div
+                      key={event.key}
+                      className="overflow-hidden rounded-2xl border"
+                      style={{
+                        borderColor: ownerStyle.border,
+                        backgroundColor: ownerStyle.background,
+                      }}
+                    >
                       <button
                         type="button"
                         onClick={() => setExpandedEventKey(isExpanded ? null : event.key)}
-                        className="flex w-full items-center gap-4 p-4 text-left transition hover:bg-gray-900/80"
+                        className="flex w-full items-center gap-4 p-4 text-left transition hover:bg-black/15"
                       >
                         <div className="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-gray-800">
                           {image ? (
@@ -657,9 +1496,51 @@ function PurchasesPageContent() {
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
                             <h3 className="text-base font-semibold text-white">{event.event}</h3>
-                            <span className="rounded-full bg-green-400/10 px-2.5 py-1 text-xs font-medium text-green-300">
-                              {event.ticketCount} ticket{event.ticketCount !== 1 ? 's' : ''}
-                            </span>
+                            {unassignedTicketCount > 0 && (
+                              <button
+                                type="button"
+                                onClick={(eventClick) => {
+                                  eventClick.stopPropagation()
+                                  setAssignError(null)
+                                  const nextDraft: Record<number, string> = {}
+                                  for (const ticket of plannerByPerformance[event.performanceId]?.tickets || []) {
+                                    nextDraft[ticket.id] = ticket.assigneeName || ''
+                                  }
+                                  setAssignDraft(nextDraft)
+                                  setAssignTarget(event)
+                                }}
+                                className="rounded-full bg-green-400/10 px-2.5 py-1 text-xs font-medium text-green-300 hover:bg-green-400/20"
+                              >
+                                {unassignedTicketCount} ticket{unassignedTicketCount !== 1 ? 's' : ''}
+                              </button>
+                            )}
+                            {assignmentCounts.length > 0 && (
+                              <div className="flex flex-wrap items-center gap-1">
+                                <span className="text-xs text-blue-200/90">Assigned:</span>
+                                {assignmentCounts.map((entry) => (
+                                  isAssigneeSelected(entry.name) ? (
+                                  <button
+                                    key={entry.name}
+                                    type="button"
+                                    onClick={(eventClick) => {
+                                      eventClick.stopPropagation()
+                                      setQrTarget({ event, assigneeName: entry.name })
+                                    }}
+                                    className="rounded-full bg-blue-400/15 px-2 py-0.5 text-xs font-medium text-blue-200 hover:bg-blue-400/25"
+                                  >
+                                    {entry.name} ({entry.count})
+                                  </button>
+                                  ) : (
+                                  <span
+                                    key={entry.name}
+                                    className="rounded-full bg-blue-400/10 px-2 py-0.5 text-xs font-medium text-blue-200/70"
+                                  >
+                                    {entry.name} ({entry.count})
+                                  </span>
+                                  )
+                                ))}
+                              </div>
+                            )}
                           </div>
                           <p className="mt-1 text-sm text-green-300">
                             {when.date} at {when.time}
@@ -727,7 +1608,7 @@ function PurchasesPageContent() {
                     })}
 
                     {positionedEvents.map((event) => {
-                      const colors = getEventColor(event.eventId || event.event)
+                      const ownerStyle = getPrimaryOwnerStyle(event.performanceId, event.eventId || event.event)
                       const top = (event.startMinutes - DAY_START_MINUTES) * PIXELS_PER_MINUTE
                       const height = Math.max(
                         MIN_EVENT_MINUTES * PIXELS_PER_MINUTE,
@@ -738,20 +1619,31 @@ function PurchasesPageContent() {
                       const width = `calc(${100 / event.columns}% - 8px)`
                       const left = `calc(${(100 / event.columns) * event.column}% + 4px)`
 
+                      const assignmentCounts = getAssignmentCounts(event.performanceId)
+                      const ownerCounts = getOwnerCounts(event.performanceId)
+                      const unassignedTicketCount = getUnassignedTicketCount(event)
+
                       return (
-                        <button
+                        <div
                           key={event.key}
-                          type="button"
+                          role="button"
+                          tabIndex={0}
                           onClick={() => setSelectedEvent(event)}
-                          title={`${event.event}\n${formatTimeLabel(event.startMinutes)} - ${formatTimeLabel(event.endMinutes)} (${event.durationMinutes} min)\n${event.venue} · ${event.subvenue}\n${event.ticketCount} ticket${event.ticketCount !== 1 ? 's' : ''}`}
-                          className={`absolute z-10 overflow-hidden rounded-2xl border text-left shadow-lg shadow-black/25 transition hover:-translate-y-0.5 hover:shadow-xl ${compact ? 'p-2' : 'p-3'}`}
+                          onKeyDown={(eventKey) => {
+                            if (eventKey.key === 'Enter' || eventKey.key === ' ') {
+                              eventKey.preventDefault()
+                              setSelectedEvent(event)
+                            }
+                          }}
+                          title={`${event.event}\n${formatTimeLabel(event.startMinutes)} - ${formatTimeLabel(event.endMinutes)} (${event.durationMinutes} min)\n${event.venue} · ${event.subvenue}`}
+                          className={`absolute z-10 cursor-pointer overflow-hidden rounded-2xl border text-left shadow-lg shadow-black/25 transition hover:-translate-y-0.5 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-green-400/60 ${compact ? 'p-2' : 'p-3'}`}
                           style={{
                             top: `${top}px`,
                             left,
                             width,
                             height: `${height}px`,
-                            backgroundColor: colors.background,
-                            borderColor: colors.border,
+                            backgroundColor: ownerStyle.background,
+                            borderColor: ownerStyle.border,
                           }}
                         >
                           <div className={`flex h-full flex-col text-white ${compact ? 'gap-0.5' : 'gap-1'}`}>
@@ -768,11 +1660,64 @@ function PurchasesPageContent() {
 
                             {!compact && <p className="line-clamp-1 text-xs text-white/85">{event.venue} · {event.subvenue}</p>}
 
-                            <div className={`text-xs text-white/95 ${compact ? '' : 'mt-auto'}`}>
-                              {event.ticketCount} ticket{event.ticketCount !== 1 ? 's' : ''}
+                            {!compact && ownerCounts.length > 0 && (
+                              <div className="flex flex-wrap gap-1 text-[10px]">
+                                {ownerCounts.map((owner) => (
+                                  <span
+                                    key={owner.name}
+                                    className="rounded-full px-2 py-0.5 font-medium text-white"
+                                    style={{ backgroundColor: owner.color }}
+                                  >
+                                    {owner.name} ({owner.count})
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+
+                            <div className={`mt-auto flex flex-wrap items-center gap-1 text-xs text-white/95`}>
+                              {unassignedTicketCount > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={(eventClick) => {
+                                    eventClick.stopPropagation()
+                                    setAssignError(null)
+                                    const nextDraft: Record<number, string> = {}
+                                    for (const ticket of plannerByPerformance[event.performanceId]?.tickets || []) {
+                                      nextDraft[ticket.id] = ticket.assigneeName || ''
+                                    }
+                                    setAssignDraft(nextDraft)
+                                    setAssignTarget(event)
+                                  }}
+                                  className="rounded-full border border-white/35 bg-black/25 px-2 py-0.5 font-medium text-white hover:bg-black/35"
+                                >
+                                  {unassignedTicketCount} ticket{unassignedTicketCount !== 1 ? 's' : ''}
+                                </button>
+                              )}
+                              {assignmentCounts.map((entry) => (
+                                isAssigneeSelected(entry.name) ? (
+                                  <button
+                                    key={entry.name}
+                                    type="button"
+                                    onClick={(eventClick) => {
+                                      eventClick.stopPropagation()
+                                      setQrTarget({ event, assigneeName: entry.name })
+                                    }}
+                                    className="rounded-full bg-black/30 px-2 py-0.5 text-white/90 hover:bg-black/45"
+                                  >
+                                    {entry.name} ({entry.count})
+                                  </button>
+                                ) : (
+                                  <span
+                                    key={entry.name}
+                                    className="rounded-full bg-black/20 px-2 py-0.5 text-white/70"
+                                  >
+                                    {entry.name} ({entry.count})
+                                  </span>
+                                )
+                              ))}
                             </div>
                           </div>
-                        </button>
+                        </div>
                       )
                     })}
                   </div>
@@ -789,6 +1734,67 @@ function PurchasesPageContent() {
           expandedTickets={expandedTickets}
           onClose={() => setSelectedEvent(null)}
           onToggleTicket={toggleTicket}
+        />
+      )}
+
+      {assignTarget && (
+        <TicketAssignModal
+          event={assignTarget}
+          plannerTickets={plannerByPerformance[assignTarget.performanceId]?.tickets || []}
+          assigneeOptions={plannerAssignees}
+          draftByTicket={assignDraft}
+          busy={assignBusy}
+          error={assignError}
+          onTicketChange={(ticketId, value) => {
+            setAssignDraft((current) => ({
+              ...current,
+              [ticketId]: value,
+            }))
+          }}
+          onSave={assignTargetTickets}
+          onClearAll={clearTargetAssignments}
+          onClose={() => {
+            setAssignTarget(null)
+            setAssignDraft({})
+            setAssignError(null)
+          }}
+        />
+      )}
+
+      {qrTarget && (
+        <AssignedQrModal
+          event={qrTarget.event}
+          assigneeName={qrTarget.assigneeName}
+          tickets={getAssignedTickets(qrTarget.event.performanceId, qrTarget.assigneeName)}
+          onClose={() => setQrTarget(null)}
+        />
+      )}
+
+      {showImportModal && (
+        <ImportShowsModal
+          cookie={importCookie}
+          onCookieChange={(value) => {
+            setImportCookie(value)
+            setImportConnected(false)
+            setImportFirstName('')
+            setImportShowCount(0)
+            setImportError(null)
+          }}
+          connected={importConnected}
+          firstName={importFirstName}
+          showCount={importShowCount}
+          connectBusy={importConnectBusy}
+          busy={importBusy}
+          error={importError}
+          onConnect={connectImportSource}
+          onImport={importShows}
+          onClose={() => {
+            setShowImportModal(false)
+            setImportConnected(false)
+            setImportFirstName('')
+            setImportShowCount(0)
+            setImportError(null)
+          }}
         />
       )}
     </div>
