@@ -74,7 +74,13 @@ const DEFAULT_DB_PATH = path.join(process.cwd(), 'data', 'planner.db')
 let db: Database.Database | null = null
 
 function getDbPath(): string {
-  return process.env.DB_PATH || DEFAULT_DB_PATH
+  if (process.env.DB_PATH) return path.resolve(process.env.DB_PATH)
+
+  if (process.env.DATA_PATH) {
+    return path.join(path.dirname(path.resolve(process.env.DATA_PATH)), 'planner.db')
+  }
+
+  return DEFAULT_DB_PATH
 }
 
 function ensureDbDir(dbPath: string): void {
