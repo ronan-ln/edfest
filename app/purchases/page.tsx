@@ -760,6 +760,16 @@ function PurchasesPageContent() {
     return performance.tickets.filter((ticket) => !(ticket.assigneeName || '').trim()).length
   }
 
+  function openAssignModal(event: FlatEvent) {
+    setAssignError(null)
+    const nextDraft: Record<number, string> = {}
+    for (const ticket of plannerByPerformance[event.performanceId]?.tickets || []) {
+      nextDraft[ticket.id] = ticket.assigneeName || ''
+    }
+    setAssignDraft(nextDraft)
+    setAssignTarget(event)
+  }
+
   function updateAssigneeFilter(next: string[]) {
     const params = new URLSearchParams(searchParams.toString())
     if (next.length === 0) {
@@ -1497,23 +1507,22 @@ function PurchasesPageContent() {
                           <div className="flex flex-wrap items-center gap-2">
                             <h3 className="text-base font-semibold text-white">{event.event}</h3>
                             {unassignedTicketCount > 0 && (
-                              <button
-                                type="button"
-                                onClick={(eventClick) => {
-                                  eventClick.stopPropagation()
-                                  setAssignError(null)
-                                  const nextDraft: Record<number, string> = {}
-                                  for (const ticket of plannerByPerformance[event.performanceId]?.tickets || []) {
-                                    nextDraft[ticket.id] = ticket.assigneeName || ''
-                                  }
-                                  setAssignDraft(nextDraft)
-                                  setAssignTarget(event)
-                                }}
+                              <span
                                 className="rounded-full bg-green-400/10 px-2.5 py-1 text-xs font-medium text-green-300 hover:bg-green-400/20"
                               >
                                 {unassignedTicketCount} ticket{unassignedTicketCount !== 1 ? 's' : ''}
-                              </button>
+                              </span>
                             )}
+                            <button
+                              type="button"
+                              onClick={(eventClick) => {
+                                eventClick.stopPropagation()
+                                openAssignModal(event)
+                              }}
+                              className="rounded-full border border-white/20 bg-black/20 px-2.5 py-1 text-xs font-medium text-white/90 hover:bg-black/30"
+                            >
+                              Assign
+                            </button>
                             {assignmentCounts.length > 0 && (
                               <div className="flex flex-wrap items-center gap-1">
                                 <span className="text-xs text-blue-200/90">Assigned:</span>
@@ -1676,23 +1685,22 @@ function PurchasesPageContent() {
 
                             <div className={`mt-auto flex flex-wrap items-center gap-1 text-xs text-white/95`}>
                               {unassignedTicketCount > 0 && (
-                                <button
-                                  type="button"
-                                  onClick={(eventClick) => {
-                                    eventClick.stopPropagation()
-                                    setAssignError(null)
-                                    const nextDraft: Record<number, string> = {}
-                                    for (const ticket of plannerByPerformance[event.performanceId]?.tickets || []) {
-                                      nextDraft[ticket.id] = ticket.assigneeName || ''
-                                    }
-                                    setAssignDraft(nextDraft)
-                                    setAssignTarget(event)
-                                  }}
+                                <span
                                   className="rounded-full border border-white/35 bg-black/25 px-2 py-0.5 font-medium text-white hover:bg-black/35"
                                 >
                                   {unassignedTicketCount} ticket{unassignedTicketCount !== 1 ? 's' : ''}
-                                </button>
+                                </span>
                               )}
+                              <button
+                                type="button"
+                                onClick={(eventClick) => {
+                                  eventClick.stopPropagation()
+                                  openAssignModal(event)
+                                }}
+                                className="rounded-full border border-white/35 bg-black/20 px-2 py-0.5 font-medium text-white hover:bg-black/35"
+                              >
+                                Assign
+                              </button>
                               {assignmentCounts.map((entry) => (
                                 isAssigneeSelected(entry.name) ? (
                                   <button
